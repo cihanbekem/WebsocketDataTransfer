@@ -1,6 +1,7 @@
 #include <libwebsockets.h>
 #include <string.h>
 #include <iostream>
+using namespace std;
 
 class WebSocketServer {
 public:
@@ -17,11 +18,11 @@ public:
     bool start() {
         context = lws_create_context(&info);
         if (!context) {
-            std::cerr << "lws_create_context failed\n";
+            cerr << "lws_create_context failed\n";
             return false;
         }
 
-        std::cout << "Server started on port " << port << std::endl;
+        cout << "Server started on port " << port << endl;
 
         while (!interrupted) {
             lws_service(context, 1000);
@@ -47,12 +48,19 @@ private:
                                    void *user, void *in, size_t len) {
         switch (reason) {
             case LWS_CALLBACK_ESTABLISHED:
-                std::cout << "Client connected" << std::endl;
+                cout << "Client connected" << endl;
                 break;
-            case LWS_CALLBACK_RECEIVE:
-                std::cout << "Received: " << (const char *)in << std::endl;
-                lws_write(wsi, (unsigned char *)in, len, LWS_WRITE_TEXT);
+            case LWS_CALLBACK_RECEIVE: {
+                cout << "Received: " << (const char *)in << endl;
+
+                // Mesajı buffer'a yaz
+                unsigned char buffer[LWS_PRE + len];
+                memcpy(&buffer[LWS_PRE], in, len);
+
+                // Mesajı geri gönder
+                lws_write(wsi, &buffer[LWS_PRE], len, LWS_WRITE_TEXT);
                 break;
+            }
             default:
                 break;
         }
@@ -65,8 +73,6 @@ private:
     struct lws_context *context;
     int port;
     bool interrupted;
-
-    
 };
 
 const struct lws_protocols WebSocketServer::protocols[] = {
@@ -75,12 +81,10 @@ const struct lws_protocols WebSocketServer::protocols[] = {
     {NULL, NULL, 0, 0} /* terminator */
 };
 
-
-
 int main() {
     WebSocketServer server(8080);
     if (server.start()) {
-        std::cout << "WebSocket Server started on port 8080\n";
+        cout << "WebSocket Server started on port 8080\n";
     }
     return 0;
 }

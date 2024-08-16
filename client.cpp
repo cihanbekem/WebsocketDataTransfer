@@ -58,15 +58,21 @@ private:
                 break;
 
             case LWS_CALLBACK_CLIENT_WRITEABLE: {
-                unsigned char msg[] = "Hello, WebSocket Server!";
-                unsigned char buf[LWS_PRE + sizeof(msg)];
-                memcpy(&buf[LWS_PRE], msg, sizeof(msg));
-                lws_write(wsi, &buf[LWS_PRE], sizeof(msg), LWS_WRITE_TEXT);
+                string input;
+                cout << "Enter a message to send: ";
+                getline(cin, input);
+
+                unsigned char buf[LWS_PRE + input.size()];
+                memcpy(&buf[LWS_PRE], input.c_str(), input.size());
+                lws_write(wsi, &buf[LWS_PRE], input.size(), LWS_WRITE_TEXT);
+
+                lws_callback_on_writable(wsi); // İstemcinin tekrar yazılabilir hale gelmesini sağlar
                 break;
             }
 
             case LWS_CALLBACK_CLIENT_RECEIVE:
-                cout << "Received: " << (const char *)in << std::endl;
+                cout << "Received: " << (const char *)in << endl;
+                lws_callback_on_writable(wsi); // İstemcinin tekrar yazılabilir hale gelmesini sağlar
                 break;
 
             default:
@@ -93,7 +99,7 @@ const struct lws_protocols WebSocketClient::protocols[] = {
 int main() {
     WebSocketClient client("localhost", 8080);
     if (client.connect()) {
-        std::cout << "WebSocket Client connected to server\n";
+        cout << "WebSocket Client connected to server\n";
     }
     return 0;
 }
