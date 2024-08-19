@@ -2,6 +2,7 @@
 #include <string.h>
 #include <iostream>
 #include <thread>
+#include <sstream>
 
 using namespace std;
 
@@ -67,13 +68,20 @@ private:
             break;
 
         case LWS_CALLBACK_RECEIVE: {
-            // Mesajı doğru şekilde al ve ekrana yazdır
-            string receivedMessage((const char *)in, len);
-            cout << "Received: " << receivedMessage << endl;
+    string receivedMessage((const char *)in, len);
+    cout << "Received file content from client:\n" << receivedMessage << endl;
 
-            lws_callback_on_writable(wsi);  // Sunucunun tekrar yazılabilir hale gelmesini sağlar
-            break;
-        }
+    // Dosya içeriğini parse etme (isteğe bağlı)
+    istringstream iss(receivedMessage);
+    string line;
+    while (getline(iss, line)) {
+        cout << "Parsed line: " << line << endl;
+    }
+
+    lws_callback_on_writable(wsi);  // Server'ın tekrar yazılabilir hale gelmesini sağlar
+    break;
+}
+
 
         default:
             break;

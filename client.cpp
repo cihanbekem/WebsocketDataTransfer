@@ -2,6 +2,7 @@
 #include <string.h>
 #include <iostream>
 #include <thread>
+#include <fstream>
 
 using namespace std;
 
@@ -56,20 +57,30 @@ public:
 
 private:
     void handleUserInput() {
-        while (!interrupted) {
-            string message;
-            cout << "Enter a message to send to the server: ";
-            cout << endl;
-            getline(cin, message);
+    while (!interrupted) {
+        string filePath;
+        cout << "Enter the path of the txt file to send to the server: ";
+        getline(cin, filePath);
 
-            if (!message.empty()) {
-                unsigned char buffer[LWS_PRE + message.size()];
-                memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
-                lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
+        if (!filePath.empty()) {
+            // Dosyayı oku
+            ifstream file(filePath);
+            if (file) {
+                // Dosya içeriğini oku ve terminalde göster
+                string fileContent((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+                cout << "File content to send:\n" << fileContent << endl;
+
+                // Dosya içeriğini server'a gönder
+                unsigned char buffer[LWS_PRE + fileContent.size()];
+                memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
+                lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
                 lws_callback_on_writable(wsi);
+            } else {
+                cout << "Failed to open file: " << filePath << endl;
             }
         }
     }
+}
 
     static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                    void *user, void *in, size_t len) {
