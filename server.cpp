@@ -58,31 +58,28 @@ private:
     }
 
     static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
-                                   void *user, void *in, size_t len) {
-        switch (reason) {
-            case LWS_CALLBACK_ESTABLISHED:
-                cout << "Client connected" << endl;
-                WebSocketServer::wsi = wsi;  // Client bağlantısını kaydet
-                break;
+                               void *user, void *in, size_t len) {
+    switch (reason) {
+        case LWS_CALLBACK_ESTABLISHED:
+            cout << "Client connected" << endl;
+            WebSocketServer::wsi = wsi;  // Bağlantıyı kaydet
+            break;
 
-            case LWS_CALLBACK_RECEIVE: {
-                string receivedMessage((const char *)in, len);  // Mesajı doğru şekilde işle
-                cout << "Received from client: " << receivedMessage << endl;
+        case LWS_CALLBACK_RECEIVE: {
+            // Mesajı doğru şekilde al ve ekrana yazdır
+            string receivedMessage((const char *)in, len);
+            cout << "Received: " << receivedMessage << endl;
 
-                // Gelen mesajı geri gönder (echo)
-                unsigned char buffer[LWS_PRE + len];
-                memcpy(&buffer[LWS_PRE], in, len);
-                lws_write(wsi, &buffer[LWS_PRE], len, LWS_WRITE_TEXT);
-
-                // Client'ın yazılabilir olduğunu belirt
-                lws_callback_on_writable(wsi);
-                break;
-            }
-            default:
-                break;
+            lws_callback_on_writable(wsi);  // Sunucunun tekrar yazılabilir hale gelmesini sağlar
+            break;
         }
-        return 0;
+
+        default:
+            break;
     }
+    return 0;
+}
+
 
     static const struct lws_protocols protocols[];
 
