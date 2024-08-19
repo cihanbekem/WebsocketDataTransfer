@@ -39,7 +39,7 @@ public:
         }
 
         while (!interrupted) {
-            lws_service(context, 1000);
+            lws_service(context, 0);
         }
         return true;
     }
@@ -74,7 +74,7 @@ private:
                 cout << "Received: " << (const char *)in << endl;
                 lws_callback_on_writable(wsi); // İstemcinin tekrar yazılabilir hale gelmesini sağlar
                 break;
-
+            
             default:
                 break;
         }

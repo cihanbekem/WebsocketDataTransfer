@@ -26,6 +26,21 @@ public:
 
         while (!interrupted) {
             lws_service(context, 1000);
+
+            // Eğer client bağlanmışsa mesaj gönder
+            if (wsi) {
+                string message;
+                cout << "Enter a message to send to the client: ";
+                getline(cin, message);
+
+                if (!message.empty()) {
+                    unsigned char buffer[LWS_PRE + message.size()];
+                    memset(buffer, 0, sizeof(buffer));  // Buffer'ı sıfırlama
+                    memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
+                    lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
+                    lws_callback_on_writable(wsi);  // Serverın tekrar yazılabilir hale gelmesini sağlar
+                }
+            }
         }
         return true;
     }
@@ -49,16 +64,22 @@ private:
         switch (reason) {
             case LWS_CALLBACK_ESTABLISHED:
                 cout << "Client connected" << endl;
+                WebSocketServer::wsi = wsi;  // Client bağlantısını kaydet
                 break;
+
             case LWS_CALLBACK_RECEIVE: {
-                cout << "Received: " << (const char *)in << endl;
+                cout << "Received: " << string((const char *)in, len) << endl;
 
                 // Mesajı buffer'a yaz
                 unsigned char buffer[LWS_PRE + len];
+                memset(buffer, 0, sizeof(buffer));  // Buffer'ı sıfırlama
+
                 memcpy(&buffer[LWS_PRE], in, len);
 
                 // Mesajı geri gönder
                 lws_write(wsi, &buffer[LWS_PRE], len, LWS_WRITE_TEXT);
+
+                lws_callback_on_writable(wsi);  // Serverın tekrar yazılabilir hale gelmesini sağlar    
                 break;
             }
             default:
@@ -73,7 +94,11 @@ private:
     struct lws_context *context;
     int port;
     bool interrupted;
+
+    static struct lws *wsi;  // Bağlı olan istemcinin bağlantısı
 };
+
+struct lws *WebSocketServer::wsi = nullptr;  // Static üye değişkeni tanımlaması
 
 const struct lws_protocols WebSocketServer::protocols[] = {
     {"http-only", WebSocketServer::callback_http, 0, 0},
