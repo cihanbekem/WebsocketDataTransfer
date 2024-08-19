@@ -3,6 +3,7 @@
 #include <iostream>
 #include <thread>
 #include <fstream>
+#include <streambuf>
 
 using namespace std;
 
@@ -57,30 +58,51 @@ public:
 
 private:
     void handleUserInput() {
-    while (!interrupted) {
-        string filePath;
-        cout << "Enter the path of the txt file to send to the server: ";
-        getline(cin, filePath);
+        while (!interrupted) {
+            string command;
+            cout << "Enter 'send' to send a file, 'message' to send a message, or 'exit' to quit: ";
+            getline(cin, command);
 
-        if (!filePath.empty()) {
-            // Dosyayı oku
-            ifstream file(filePath);
-            if (file) {
-                // Dosya içeriğini oku ve terminalde göster
-                string fileContent((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-                cout << "File content to send:\n" << fileContent << endl;
+            if (command == "send") {
+                string filePath;
+                cout << "Enter the path of the file to send: ";
+                getline(cin, filePath);
 
-                // Dosya içeriğini server'a gönder
+                ifstream file(filePath, ios::binary | ios::ate);
+                if (!file.is_open()) {
+                    cerr << "Failed to open file." << endl;
+                    continue;
+                }
+
+                streambuf* sbuf = file.rdbuf();
+                size_t size = sbuf->pubseekoff(0, ios::end, ios::in);
+                sbuf->pubseekpos(0, ios::in);
+
+                string fileContent(size, '\0');
+                sbuf->sgetn(&fileContent[0], size);
+                file.close();
+
                 unsigned char buffer[LWS_PRE + fileContent.size()];
                 memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
                 lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
                 lws_callback_on_writable(wsi);
-            } else {
-                cout << "Failed to open file: " << filePath << endl;
+                cout << "File sent successfully." << endl;
+            } else if (command == "message") {
+                string message;
+                cout << "Enter a message to send to the server: ";
+                getline(cin, message);
+
+                if (!message.empty()) {
+                    unsigned char buffer[LWS_PRE + message.size()];
+                    memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
+                    lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
+                    lws_callback_on_writable(wsi);
+                }
+            } else if (command == "exit") {
+                stop();
             }
         }
     }
-}
 
     static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                    void *user, void *in, size_t len) {
@@ -90,14 +112,31 @@ private:
                 lws_callback_on_writable(wsi);  // Client'ın tekrar yazılabilir hale gelmesini sağlar
                 break;
 
-            case LWS_CALLBACK_CLIENT_RECEIVE:
-                string receivedMessage((const char *)in, len);  // Mesajı doğru şekilde işle
+            case LWS_CALLBACK_CLIENT_RECEIVE: {
+                string receivedMessage((const char *)in, len);
                 cout << "Received from server: " << receivedMessage << endl;
+
+                // Dosya almak için bir yol eklenmediği sürece, gelen mesajı bir dosyaya yazma
+                if (receivedMessage == "Successfully opened") {
+                    cout << "Server successfully opened the file." << endl;
+                } else {
+                    // Mesajı dosyaya yaz
+                    ofstream outFile("received_data_from_server.txt", ios::app);
+                    if (outFile.is_open()) {
+                        outFile << receivedMessage << endl;
+                        outFile.close();
+                        cout << "Text content written to file." << endl;
+                    } else {
+                        cerr << "Failed to open file for writing." << endl;
+                    }
+                }
+
                 lws_callback_on_writable(wsi);  // Client'ın tekrar yazılabilir hale gelmesini sağlar
                 break;
+            }
 
-            /*default:
-                break;*/
+            default:
+                break;
         }
         return 0;
     }
