@@ -46,6 +46,7 @@ private:
             if (wsi) {
                 string message;
                 cout << "Enter a message to send to the client: ";
+                cout << endl;
                 getline(cin, message);
 
                 if (!message.empty()) {

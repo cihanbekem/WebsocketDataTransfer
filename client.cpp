@@ -59,6 +59,7 @@ private:
         while (!interrupted) {
             string message;
             cout << "Enter a message to send to the server: ";
+            cout << endl;
             getline(cin, message);
 
             if (!message.empty()) {
