@@ -1,6 +1,8 @@
 #include <libwebsockets.h>
 #include <string.h>
 #include <iostream>
+#include <thread>
+
 using namespace std;
 
 class WebSocketServer {
@@ -24,24 +26,13 @@ public:
 
         cout << "Server started on port " << port << endl;
 
+        thread inputThread(&WebSocketServer::handleUserInput, this);
+
         while (!interrupted) {
             lws_service(context, 1000);
-
-            // Eğer client bağlanmışsa mesaj gönder
-            if (wsi) {
-                string message;
-                cout << "Enter a message to send to the client: ";
-                getline(cin, message);
-
-                if (!message.empty()) {
-                    unsigned char buffer[LWS_PRE + message.size()];
-                    memset(buffer, 0, sizeof(buffer));  // Buffer'ı sıfırlama
-                    memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
-                    lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
-                    lws_callback_on_writable(wsi);  // Serverın tekrar yazılabilir hale gelmesini sağlar
-                }
-            }
         }
+
+        inputThread.join();
         return true;
     }
 
@@ -50,13 +41,20 @@ public:
     }
 
 private:
-    static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
-                             void *user, void *in, size_t len) {
-        if (reason == LWS_CALLBACK_HTTP) {
-            lws_return_http_status(wsi, HTTP_STATUS_OK, "WebSocket Server is Running");
-            return -1;
+    void handleUserInput() {
+        while (!interrupted) {
+            if (wsi) {
+                string message;
+                cout << "Enter a message to send to the client: ";
+                getline(cin, message);
+
+                if (!message.empty()) {
+                    unsigned char buffer[LWS_PRE + message.size()];
+                    memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
+                    lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
+                }
+            }
         }
-        return 0;
     }
 
     static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
@@ -68,18 +66,16 @@ private:
                 break;
 
             case LWS_CALLBACK_RECEIVE: {
-                cout << "Received: " << string((const char *)in, len) << endl;
+                string receivedMessage((const char *)in, len);  // Mesajı doğru şekilde işle
+                cout << "Received from client: " << receivedMessage << endl;
 
-                // Mesajı buffer'a yaz
+                // Gelen mesajı geri gönder (echo)
                 unsigned char buffer[LWS_PRE + len];
-                memset(buffer, 0, sizeof(buffer));  // Buffer'ı sıfırlama
-
                 memcpy(&buffer[LWS_PRE], in, len);
-
-                // Mesajı geri gönder
                 lws_write(wsi, &buffer[LWS_PRE], len, LWS_WRITE_TEXT);
 
-                lws_callback_on_writable(wsi);  // Serverın tekrar yazılabilir hale gelmesini sağlar    
+                // Client'ın yazılabilir olduğunu belirt
+                lws_callback_on_writable(wsi);
                 break;
             }
             default:
@@ -101,7 +97,6 @@ private:
 struct lws *WebSocketServer::wsi = nullptr;  // Static üye değişkeni tanımlaması
 
 const struct lws_protocols WebSocketServer::protocols[] = {
-    {"http-only", WebSocketServer::callback_http, 0, 0},
     {"websocket-protocol", WebSocketServer::callback_websockets, 0, 0},
     {NULL, NULL, 0, 0} /* terminator */
 };

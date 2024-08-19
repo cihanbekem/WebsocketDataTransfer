@@ -1,6 +1,8 @@
 #include <libwebsockets.h>
 #include <string.h>
 #include <iostream>
+#include <thread>
+
 using namespace std;
 
 class WebSocketClient {
@@ -38,9 +40,13 @@ public:
             return false;
         }
 
+        thread inputThread(&WebSocketClient::handleUserInput, this);
+
         while (!interrupted) {
-            lws_service(context, 0);
+            lws_service(context, 1000);
         }
+
+        inputThread.join();
         return true;
     }
 
@@ -49,34 +55,37 @@ public:
     }
 
 private:
+    void handleUserInput() {
+        while (!interrupted) {
+            string message;
+            cout << "Enter a message to send to the server: ";
+            getline(cin, message);
+
+            if (!message.empty()) {
+                unsigned char buffer[LWS_PRE + message.size()];
+                memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
+                lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
+                lws_callback_on_writable(wsi);
+            }
+        }
+    }
+
     static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                    void *user, void *in, size_t len) {
         switch (reason) {
             case LWS_CALLBACK_CLIENT_ESTABLISHED:
                 cout << "WebSocket Client connected\n";
-                lws_callback_on_writable(wsi);
+                lws_callback_on_writable(wsi);  // Client'ın tekrar yazılabilir hale gelmesini sağlar
                 break;
-
-            case LWS_CALLBACK_CLIENT_WRITEABLE: {
-                string input;
-                cout << "Enter a message to send: ";
-                getline(cin, input);
-
-                unsigned char buf[LWS_PRE + input.size()];
-                memcpy(&buf[LWS_PRE], input.c_str(), input.size());
-                lws_write(wsi, &buf[LWS_PRE], input.size(), LWS_WRITE_TEXT);
-
-                lws_callback_on_writable(wsi); // İstemcinin tekrar yazılabilir hale gelmesini sağlar
-                break;
-            }
 
             case LWS_CALLBACK_CLIENT_RECEIVE:
-                cout << "Received: " << (const char *)in << endl;
-                lws_callback_on_writable(wsi); // İstemcinin tekrar yazılabilir hale gelmesini sağlar
+                string receivedMessage((const char *)in, len);  // Mesajı doğru şekilde işle
+                cout << "Received from server: " << receivedMessage << endl;
+                lws_callback_on_writable(wsi);  // Client'ın tekrar yazılabilir hale gelmesini sağlar
                 break;
-            
-            default:
-                break;
+
+            /*default:
+                break;*/
         }
         return 0;
     }
