@@ -5,6 +5,8 @@
 #include <fstream>
 #include <streambuf>
 #include <nlohmann/json.hpp>
+#include <vector>
+#include <sstream>
 
 using namespace std;
 using json = nlohmann::json;
@@ -85,17 +87,44 @@ private:
                         continue;
                     }
 
+                    vector<vector<string>> csvData;
                     string line;
+
                     while (getline(file, line)) {
-                        unsigned char buffer[LWS_PRE + line.size()];
-                        memcpy(&buffer[LWS_PRE], line.c_str(), line.size());
-                        lws_write(wsi, &buffer[LWS_PRE], line.size(), LWS_WRITE_TEXT);
-                        lws_callback_on_writable(wsi);
+                        stringstream ss(line);
+                        string item;
+                        vector<string> row;
+
+                        while (getline(ss, item, ',')) {
+                            row.push_back(item);
+                        }
+
+                        csvData.push_back(row);
                     }
 
                     file.close();
-                    cout << "CSV file sent successfully." << endl;
 
+                    json j;
+                    for (size_t i = 0; i < csvData.size(); ++i) {
+                        json rowJson;
+                        for (size_t j = 0; j < csvData[i].size(); ++j) {
+                            rowJson.push_back(csvData[i][j]);
+                        }
+                        j["row_" + to_string(i)] = rowJson;
+                    }
+
+                    ofstream jsonFile("sent_data.json");
+                    jsonFile << j.dump(4);
+                    jsonFile.close();
+
+                    // Send the JSON data over WebSocket
+                    string jsonString = j.dump();
+                    unsigned char buffer[LWS_PRE + jsonString.size()];
+                    memcpy(&buffer[LWS_PRE], jsonString.c_str(), jsonString.size());
+                    lws_write(wsi, &buffer[LWS_PRE], jsonString.size(), LWS_WRITE_TEXT);
+                    lws_callback_on_writable(wsi);
+
+                    cout << "CSV data sent and saved as JSON successfully." << endl;
                 } else {
                     ifstream file(filePath, ios::binary | ios::ate);
                     if (!file.is_open()) {
