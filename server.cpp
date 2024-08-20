@@ -74,6 +74,27 @@ private:
                     unsigned char buffer[LWS_PRE + fileContent.size()];
                     memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
                     lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
+
+                    // JSON dosyasına kaydet
+                   json j;
+j["file_content"] = fileContent;  // Tüm içeriği tek bir string olarak saklamak yerine:
+
+// İçeriği satır satır ayırın ve her bir satırı ayrı bir dizi öğesi olarak saklayın.
+vector<string> lines;
+stringstream ss(fileContent);
+string line;
+
+while (getline(ss, line)) {
+    lines.push_back(line);
+}
+
+j["file_content"] = lines;  // JSON'a dizi olarak ekleyin.
+
+ofstream jsonFile("file_content.json");
+jsonFile << j.dump(4);
+jsonFile.close();
+
+                    
                 } else if (command == "message") {
                     string message;
                     cout << "Enter a message to send to the client: ";
@@ -101,23 +122,45 @@ private:
                 WebSocketServer::wsi = wsi;  // Bağlantıyı kaydet
                 break;
 
-            case LWS_CALLBACK_RECEIVE: {
-                string receivedData((const char*)in, len);
-                if (receivedData == "END") {
-                    cout << "File transfer completed." << endl;
-                } else {
-                    cout << "Received data: " << receivedData << endl;
-                }
+            case LWS_CALLBACK_CLIENT_RECEIVE: {
+    string receivedMessage((const char *)in, len);
+    cout << "Received from server: " << receivedMessage << endl;
 
-                // JSON dosyası oluşturulup yazılacak
-                json j;
-                j["received_data"] = receivedData;
-                ofstream jsonFile("received_data.json");
-                jsonFile << j.dump(4);
-                jsonFile.close();
+    // Mevcut JSON dosyasını aç ve oku
+    ifstream inFile("received_data_from_server.json");
+    json j;
 
-                break;
-            }
+    if (inFile) {
+        inFile >> j;  // Eğer dosya zaten varsa ve içerik varsa onu oku
+        inFile.close();
+    }
+
+    // Yeni mesajı satırlara böl
+    vector<string> lines;
+    stringstream ss(receivedMessage);
+    string line;
+    while (getline(ss, line)) {
+        // Her satırı ayrı bir eleman olarak ekle
+        lines.push_back(line);
+    }
+
+    // Yeni satırları JSON nesnesine ekle
+    json newEntry;
+    newEntry["received_message"] = lines;
+    j.push_back(newEntry);
+
+    // Güncellenmiş JSON'u dosyaya tekrar yaz
+    ofstream outFile("received_data_from_server.json");
+    outFile << j.dump(4) << endl;  // Güzel formatlanmış şekilde JSON'u yaz
+    outFile.close();
+
+    cout << "Text content written to file." << endl;
+
+    lws_callback_on_writable(wsi);
+    break;
+}
+
+
 
             default:
                 break;

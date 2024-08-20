@@ -181,20 +181,40 @@ private:
                 string receivedMessage((const char *)in, len);
                 cout << "Received from server: " << receivedMessage << endl;
 
-                if (receivedMessage == "Successfully opened") {
-                    cout << "Server successfully opened the file." << endl;
-                } else {
-                    ofstream outFile("received_data_from_server.json");
-                    json j;
-                    j["received_message"] = receivedMessage;
-                    outFile << j.dump(4);
-                    outFile.close();
-                    cout << "Text content written to file." << endl;
+                // Mevcut JSON dosyasını aç ve oku
+                ifstream inFile("received_data_from_server.json");
+                json j;
+
+                if (inFile) {
+                inFile >> j;  // Eğer dosya zaten varsa ve içerik varsa onu oku
+                inFile.close();
                 }
+
+                // Yeni mesajı satırlara böl
+                vector<string> lines;
+                stringstream ss(receivedMessage);
+                string line;
+                while (getline(ss, line, '\n')) {
+                lines.push_back(line);
+                }
+
+                // Yeni satırları JSON nesnesine ekle
+                json newEntry;
+                newEntry["received_message"] = lines;
+                j.push_back(newEntry);
+
+                // Güncellenmiş JSON'u dosyaya tekrar yaz
+                ofstream outFile("received_data_from_server.json");
+                outFile << j.dump(4) << endl;  // Güzel formatlanmış şekilde JSON'u yaz
+                outFile.close();
+
+                cout << "Text content written to file." << endl;
 
                 lws_callback_on_writable(wsi);
                 break;
             }
+
+
 
             default:
                 break;
