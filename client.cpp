@@ -64,30 +64,62 @@ private:
             getline(cin, command);
 
             if (command == "send") {
-                string filePath;
-                cout << "Enter the path of the file to send: ";
-                getline(cin, filePath);
+    string filePath;
+    cout << "Enter the path of the file to send: ";
+    getline(cin, filePath);
 
-                ifstream file(filePath, ios::binary | ios::ate);
-                if (!file.is_open()) {
-                    cerr << "Failed to open file." << endl;
-                    continue;
-                }
+    // Dosya uzantısını kontrol et
+    if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
+        // CSV dosyasını oku ve gönder
+        ifstream file(filePath);
+        if (!file.is_open()) {
+            cerr << "Failed to open file." << endl;
+            continue;
+        }
 
-                streambuf* sbuf = file.rdbuf();
-                size_t size = sbuf->pubseekoff(0, ios::end, ios::in);
-                sbuf->pubseekpos(0, ios::in);
+        string line;
+        while (getline(file, line)) {
+            unsigned char buffer[LWS_PRE + line.size()];
+            memcpy(&buffer[LWS_PRE], line.c_str(), line.size());
+            lws_write(wsi, &buffer[LWS_PRE], line.size(), LWS_WRITE_TEXT);
+            lws_callback_on_writable(wsi);
+        }
 
-                string fileContent(size, '\0');
-                sbuf->sgetn(&fileContent[0], size);
-                file.close();
+        file.close();
+        cout << "CSV file sent successfully." << endl;
 
-                unsigned char buffer[LWS_PRE + fileContent.size()];
-                memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
-                lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
-                lws_callback_on_writable(wsi);
-                cout << "File sent successfully." << endl;
-            } else if (command == "message") {
+    } else {
+        // Diğer dosyaları (örneğin txt) oku ve gönder
+        ifstream file(filePath, ios::binary | ios::ate);
+        if (!file.is_open()) {
+            cerr << "Failed to open file." << endl;
+            continue;
+        }
+
+        streambuf* sbuf = file.rdbuf();
+        size_t size = sbuf->pubseekoff(0, ios::end, ios::in);
+        sbuf->pubseekpos(0, ios::in);
+
+        string fileContent(size, '\0');
+        sbuf->sgetn(&fileContent[0], size);
+        file.close();
+
+        unsigned char buffer[LWS_PRE + fileContent.size()];
+        memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
+        lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
+        lws_callback_on_writable(wsi);
+        cout << "File sent successfully." << endl;
+    }
+
+    // Dosya gönderiminin bittiğini belirten bir sinyal gönder
+    string endSignal = "END";
+    unsigned char endBuffer[LWS_PRE + endSignal.size()];
+    memcpy(&endBuffer[LWS_PRE], endSignal.c_str(), endSignal.size());
+    lws_write(wsi, &endBuffer[LWS_PRE], endSignal.size(), LWS_WRITE_TEXT);
+    lws_callback_on_writable(wsi);
+}
+
+    else if (command == "message") {
                 string message;
                 cout << "Enter a message to send to the server: ";
                 getline(cin, message);

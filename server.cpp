@@ -100,28 +100,19 @@ private:
                 break;
 
             case LWS_CALLBACK_RECEIVE: {
-                // Veriyi dosyaya yazma
-                fileBuffer.insert(fileBuffer.end(), (unsigned char*)in, (unsigned char*)in + len);
+    // Gelen veriyi terminalde göster
+    string receivedData((const char*)in, len);
+    if (receivedData == "END") {
+        cout << "File transfer completed." << endl;
+    } else {
+        cout << "Received data: " << receivedData << endl;
+    }
 
-                // Dosyayı yazma
-                ofstream outFile("received_file_from_client.txt", ios::binary | ios::app);
-                if (outFile.is_open()) {
-                    outFile.write(reinterpret_cast<const char*>(fileBuffer.data()), fileBuffer.size());
-                    fileBuffer.clear();
-                    outFile.close();
-                    cout << "File successfully written to 'received_file_from_client.txt'" << endl;
-                } else {
-                    cerr << "Failed to open file for writing." << endl;
-                }
+    break;
+}
 
-                // Başarıyla dosyanın açıldığını istemciye bildirme
-                string successMessage = "Successfully opened";
-                unsigned char buffer[LWS_PRE + successMessage.size()];
-                memcpy(&buffer[LWS_PRE], successMessage.c_str(), successMessage.size());
-                lws_write(wsi, &buffer[LWS_PRE], successMessage.size(), LWS_WRITE_TEXT);
+   
 
-                break;
-            }
 
             default:
                 break;
