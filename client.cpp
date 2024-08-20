@@ -4,8 +4,10 @@
 #include <thread>
 #include <fstream>
 #include <streambuf>
+#include <nlohmann/json.hpp>
 
 using namespace std;
+using json = nlohmann::json;
 
 class WebSocketClient {
 public:
@@ -56,6 +58,14 @@ public:
         interrupted = true;
     }
 
+    string getAddress() const {
+        return address;
+    }
+
+    int getPort() const {
+        return port;
+    }
+
 private:
     void handleUserInput() {
         while (!interrupted) {
@@ -64,62 +74,56 @@ private:
             getline(cin, command);
 
             if (command == "send") {
-    string filePath;
-    cout << "Enter the path of the file to send: ";
-    getline(cin, filePath);
+                string filePath;
+                cout << "Enter the path of the file to send: ";
+                getline(cin, filePath);
 
-    // Dosya uzantısını kontrol et
-    if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
-        // CSV dosyasını oku ve gönder
-        ifstream file(filePath);
-        if (!file.is_open()) {
-            cerr << "Failed to open file." << endl;
-            continue;
-        }
+                if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
+                    ifstream file(filePath);
+                    if (!file.is_open()) {
+                        cerr << "Failed to open file." << endl;
+                        continue;
+                    }
 
-        string line;
-        while (getline(file, line)) {
-            unsigned char buffer[LWS_PRE + line.size()];
-            memcpy(&buffer[LWS_PRE], line.c_str(), line.size());
-            lws_write(wsi, &buffer[LWS_PRE], line.size(), LWS_WRITE_TEXT);
-            lws_callback_on_writable(wsi);
-        }
+                    string line;
+                    while (getline(file, line)) {
+                        unsigned char buffer[LWS_PRE + line.size()];
+                        memcpy(&buffer[LWS_PRE], line.c_str(), line.size());
+                        lws_write(wsi, &buffer[LWS_PRE], line.size(), LWS_WRITE_TEXT);
+                        lws_callback_on_writable(wsi);
+                    }
 
-        file.close();
-        cout << "CSV file sent successfully." << endl;
+                    file.close();
+                    cout << "CSV file sent successfully." << endl;
 
-    } else {
-        // Diğer dosyaları (örneğin txt) oku ve gönder
-        ifstream file(filePath, ios::binary | ios::ate);
-        if (!file.is_open()) {
-            cerr << "Failed to open file." << endl;
-            continue;
-        }
+                } else {
+                    ifstream file(filePath, ios::binary | ios::ate);
+                    if (!file.is_open()) {
+                        cerr << "Failed to open file." << endl;
+                        continue;
+                    }
 
-        streambuf* sbuf = file.rdbuf();
-        size_t size = sbuf->pubseekoff(0, ios::end, ios::in);
-        sbuf->pubseekpos(0, ios::in);
+                    streambuf* sbuf = file.rdbuf();
+                    size_t size = sbuf->pubseekoff(0, ios::end, ios::in);
+                    sbuf->pubseekpos(0, ios::in);
 
-        string fileContent(size, '\0');
-        sbuf->sgetn(&fileContent[0], size);
-        file.close();
+                    string fileContent(size, '\0');
+                    sbuf->sgetn(&fileContent[0], size);
+                    file.close();
 
-        unsigned char buffer[LWS_PRE + fileContent.size()];
-        memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
-        lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
-        lws_callback_on_writable(wsi);
-        cout << "File sent successfully." << endl;
-    }
+                    unsigned char buffer[LWS_PRE + fileContent.size()];
+                    memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
+                    lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
+                    lws_callback_on_writable(wsi);
+                    cout << "File sent successfully." << endl;
+                }
 
-    // Dosya gönderiminin bittiğini belirten bir sinyal gönder
-    string endSignal = "END";
-    unsigned char endBuffer[LWS_PRE + endSignal.size()];
-    memcpy(&endBuffer[LWS_PRE], endSignal.c_str(), endSignal.size());
-    lws_write(wsi, &endBuffer[LWS_PRE], endSignal.size(), LWS_WRITE_TEXT);
-    lws_callback_on_writable(wsi);
-}
-
-    else if (command == "message") {
+                string endSignal = "END";
+                unsigned char endBuffer[LWS_PRE + endSignal.size()];
+                memcpy(&endBuffer[LWS_PRE], endSignal.c_str(), endSignal.size());
+                lws_write(wsi, &endBuffer[LWS_PRE], endSignal.size(), LWS_WRITE_TEXT);
+                lws_callback_on_writable(wsi);
+            } else if (command == "message") {
                 string message;
                 cout << "Enter a message to send to the server: ";
                 getline(cin, message);
@@ -141,29 +145,25 @@ private:
         switch (reason) {
             case LWS_CALLBACK_CLIENT_ESTABLISHED:
                 cout << "WebSocket Client connected\n";
-                lws_callback_on_writable(wsi);  // Client'ın tekrar yazılabilir hale gelmesini sağlar
+                lws_callback_on_writable(wsi);
                 break;
 
             case LWS_CALLBACK_CLIENT_RECEIVE: {
                 string receivedMessage((const char *)in, len);
                 cout << "Received from server: " << receivedMessage << endl;
 
-                // Dosya almak için bir yol eklenmediği sürece, gelen mesajı bir dosyaya yazma
                 if (receivedMessage == "Successfully opened") {
                     cout << "Server successfully opened the file." << endl;
                 } else {
-                    // Mesajı dosyaya yaz
-                    ofstream outFile("received_data_from_server.txt", ios::app);
-                    if (outFile.is_open()) {
-                        outFile << receivedMessage << endl;
-                        outFile.close();
-                        cout << "Text content written to file." << endl;
-                    } else {
-                        cerr << "Failed to open file for writing." << endl;
-                    }
+                    ofstream outFile("received_data_from_server.json");
+                    json j;
+                    j["received_message"] = receivedMessage;
+                    outFile << j.dump(4);
+                    outFile.close();
+                    cout << "Text content written to file." << endl;
                 }
 
-                lws_callback_on_writable(wsi);  // Client'ın tekrar yazılabilir hale gelmesini sağlar
+                lws_callback_on_writable(wsi);
                 break;
             }
 
@@ -193,5 +193,15 @@ int main() {
     if (client.connect()) {
         cout << "WebSocket Client connected to server\n";
     }
+
+    json client_json;
+    client_json["address"] = client.getAddress();
+    client_json["port"] = client.getPort();
+    client_json["status"] = "connected";
+
+    ofstream jsonFile("client_info.json");
+    jsonFile << client_json.dump(4);
+    jsonFile.close();
+
     return 0;
 }

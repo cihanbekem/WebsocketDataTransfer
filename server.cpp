@@ -4,8 +4,10 @@
 #include <thread>
 #include <fstream>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 using namespace std;
+using json = nlohmann::json;
 
 class WebSocketServer {
 public:
@@ -100,19 +102,22 @@ private:
                 break;
 
             case LWS_CALLBACK_RECEIVE: {
-    // Gelen veriyi terminalde göster
-    string receivedData((const char*)in, len);
-    if (receivedData == "END") {
-        cout << "File transfer completed." << endl;
-    } else {
-        cout << "Received data: " << receivedData << endl;
-    }
+                string receivedData((const char*)in, len);
+                if (receivedData == "END") {
+                    cout << "File transfer completed." << endl;
+                } else {
+                    cout << "Received data: " << receivedData << endl;
+                }
 
-    break;
-}
+                // JSON dosyası oluşturulup yazılacak
+                json j;
+                j["received_data"] = receivedData;
+                ofstream jsonFile("received_data.json");
+                jsonFile << j.dump(4);
+                jsonFile.close();
 
-   
-
+                break;
+            }
 
             default:
                 break;
