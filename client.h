@@ -1,27 +1,19 @@
-
-#ifndef WEBSOCKETCLIENT_H
-#define WEBSOCKETCLIENT_H
+#ifndef CLIENT_H
+#define CLIENT_H
 
 #include <libwebsockets.h>
-#include <string.h>
-#include <iostream>
-#include <thread>
-#include <fstream>
-#include <streambuf>
-#include <nlohmann/json.hpp>
+#include <string>
 #include <vector>
-#include <sstream>
-
-using namespace std;
-using json = nlohmann::json;
+#include <nlohmann/json.hpp>
 
 class WebSocketClient {
 public:
-    WebSocketClient(const string& address, int port);
+    WebSocketClient(const std::string& address, int port);
     ~WebSocketClient();
+
     bool connect();
     void stop();
-    string getAddress() const;
+    std::string getAddress() const;
     int getPort() const;
 
 private:
@@ -30,12 +22,14 @@ private:
                                    void *user, void *in, size_t len);
 
     static const struct lws_protocols protocols[];
+
     struct lws_context_creation_info info;
     struct lws_context *context;
-    struct lws *wsi;
     std::string address;
     int port;
     bool interrupted;
+
+    static struct lws *wsi;
 };
 
-#endif // WEBSOCKETCLIENT_H
+#endif // CLIENT_H

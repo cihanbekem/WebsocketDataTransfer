@@ -1,256 +1,185 @@
-#include <libwebsockets.h>
-#include <string.h>
+#include "client.h"
 #include <iostream>
+#include <cstring>
 #include <thread>
 #include <fstream>
-#include <streambuf>
-#include <nlohmann/json.hpp>
 #include <vector>
 #include <sstream>
+#include <nlohmann/json.hpp>
 
 using namespace std;
 using json = nlohmann::json;
 
-class WebSocketClient {
-public:
-    WebSocketClient(const string& address, int port)
-        : address(address), port(port), interrupted(false) {
-        memset(&info, 0, sizeof(info));
-        info.protocols = protocols;
+struct lws *WebSocketClient::wsi = nullptr; // Eksik tanım
+
+WebSocketClient::WebSocketClient(const string& address, int port)
+    : address(address), port(port), interrupted(false) {
+    memset(&info, 0, sizeof(info));
+    info.protocols = protocols;
+}
+
+WebSocketClient::~WebSocketClient() {
+    lws_context_destroy(context);
+}
+
+bool WebSocketClient::connect() {
+    context = lws_create_context(&info);
+    if (!context) {
+        cout << "lws_create_context failed\n";
+        return false;
     }
 
-    ~WebSocketClient() {
-        lws_context_destroy(context);
+    struct lws_client_connect_info ccinfo = {0};
+    ccinfo.context = context;
+    ccinfo.address = address.c_str();
+    ccinfo.port = port;
+    ccinfo.path = "/";
+    ccinfo.protocol = protocols[0].name;
+    ccinfo.host = lws_canonical_hostname(context);
+    ccinfo.origin = "origin";
+    ccinfo.ietf_version_or_minus_one = -1;
+
+    wsi = lws_client_connect_via_info(&ccinfo);
+    if (!wsi) {
+        cout << "lws_client_connect_via_info failed\n";
+        return false;
     }
 
-    bool connect() {
-        context = lws_create_context(&info);
-        if (!context) {
-            cout << "lws_create_context failed\n";
-            return false;
-        }
+    thread inputThread(&WebSocketClient::handleUserInput, this);
 
-        struct lws_client_connect_info ccinfo = {0};
-        ccinfo.context = context;
-        ccinfo.address = address.c_str();
-        ccinfo.port = port;
-        ccinfo.path = "/";
-        ccinfo.protocol = protocols[0].name;
-        ccinfo.host = lws_canonical_hostname(context);
-        ccinfo.origin = "origin";
-        ccinfo.ietf_version_or_minus_one = -1;
-
-        wsi = lws_client_connect_via_info(&ccinfo);
-        if (!wsi) {
-            cout << "lws_client_connect_via_info failed\n";
-            return false;
-        }
-
-        thread inputThread(&WebSocketClient::handleUserInput, this);
-
-        while (!interrupted) {
-            lws_service(context, 1000);
-        }
-
-        inputThread.join();
-        return true;
+    while (!interrupted) {
+        lws_service(context, 1000);
     }
 
-    void stop() {
-        interrupted = true;
-    }
+    inputThread.join();
+    return true;
+}
 
-    string getAddress() const {
-        return address;
-    }
+void WebSocketClient::stop() {
+    interrupted = true;
+}
 
-    int getPort() const {
-        return port;
-    }
+string WebSocketClient::getAddress() const {
+    return address;
+}
 
-private:
-    void handleUserInput() {
-        while (!interrupted) {
-            string command;
-            cout << "Enter 'send' to send a file, 'message' to send a message, or 'exit' to quit: ";
-            getline(cin, command);
+int WebSocketClient::getPort() const {
+    return port;
+}
 
-            if (command == "send") {
-                string filePath;
-                cout << "Enter the path of the file to send: ";
-                getline(cin, filePath);
+void WebSocketClient::handleUserInput() {
+    while (!interrupted) {
+        string command;
+        cout << "Enter 'send' to send a file, 'message' to send a message, or 'exit' to quit: ";
+        getline(cin, command);
 
-                if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
-                    ifstream file(filePath);
-                    if (!file.is_open()) {
-                        cerr << "Failed to open file." << endl;
-                        continue;
-                    }
+        if (command == "send") {
+            string filePath;
+            cout << "Enter the path of the file to send: ";
+            getline(cin, filePath);
 
-                    vector<vector<string>> csvData;
-                    string line;
-
-                    while (getline(file, line)) {
-                        stringstream ss(line);
-                        string item;
-                        vector<string> row;
-
-                        while (getline(ss, item, ',')) {
-                            row.push_back(item);
-                        }
-
-                        csvData.push_back(row);
-                    }
-
-                    file.close();
-
-                    json j;
-                    for (size_t i = 0; i < csvData.size(); ++i) {
-                        json rowJson;
-                        for (size_t j = 0; j < csvData[i].size(); ++j) {
-                            rowJson.push_back(csvData[i][j]);
-                        }
-                        j["row_" + to_string(i)] = rowJson;
-                    }
-
-                    ofstream jsonFile("sent_data.json");
-                    jsonFile << j.dump(4);
-                    jsonFile.close();
-
-                    // Send the JSON data over WebSocket
-                    string jsonString = j.dump();
-                    unsigned char buffer[LWS_PRE + jsonString.size()];
-                    memcpy(&buffer[LWS_PRE], jsonString.c_str(), jsonString.size());
-                    lws_write(wsi, &buffer[LWS_PRE], jsonString.size(), LWS_WRITE_TEXT);
-                    lws_callback_on_writable(wsi);
-
-                    cout << "CSV data sent and saved as JSON successfully." << endl;
-                } else {
-                    ifstream file(filePath, ios::binary | ios::ate);
-                    if (!file.is_open()) {
-                        cerr << "Failed to open file." << endl;
-                        continue;
-                    }
-
-                    streambuf* sbuf = file.rdbuf();
-                    size_t size = sbuf->pubseekoff(0, ios::end, ios::in);
-                    sbuf->pubseekpos(0, ios::in);
-
-                    string fileContent(size, '\0');
-                    sbuf->sgetn(&fileContent[0], size);
-                    file.close();
-
-                    unsigned char buffer[LWS_PRE + fileContent.size()];
-                    memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
-                    lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
-                    lws_callback_on_writable(wsi);
-                    cout << "File sent successfully." << endl;
+            if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
+                ifstream file(filePath);
+                if (!file.is_open()) {
+                    cerr << "Failed to open file." << endl;
+                    continue;
                 }
 
-                string endSignal = "END";
-                unsigned char endBuffer[LWS_PRE + endSignal.size()];
-                memcpy(&endBuffer[LWS_PRE], endSignal.c_str(), endSignal.size());
-                lws_write(wsi, &endBuffer[LWS_PRE], endSignal.size(), LWS_WRITE_TEXT);
-                lws_callback_on_writable(wsi);
-            } else if (command == "message") {
-                string message;
-                cout << "Enter a message to send to the server: ";
-                getline(cin, message);
+                vector<vector<string>> csvData;
+                string line;
 
-                if (!message.empty()) {
-                    unsigned char buffer[LWS_PRE + message.size()];
-                    memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
-                    lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
-                    lws_callback_on_writable(wsi);
+                while (getline(file, line)) {
+                    stringstream ss(line);
+                    string item;
+                    vector<string> row;
+
+                    while (getline(ss, item, ',')) {
+                        row.push_back(item);
+                    }
+
+                    csvData.push_back(row);
                 }
-            } else if (command == "exit") {
-                stop();
-            }
-        }
-    }
 
-    static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
-                                   void *user, void *in, size_t len) {
-        switch (reason) {
-            case LWS_CALLBACK_CLIENT_ESTABLISHED:
-                cout << "WebSocket Client connected\n";
-                lws_callback_on_writable(wsi);
-                break;
+                file.close();
 
-            case LWS_CALLBACK_CLIENT_RECEIVE: {
-                string receivedMessage((const char *)in, len);
-                cout << "Received from server: " << receivedMessage << endl;
-
-                // Mevcut JSON dosyasını aç ve oku
-                ifstream inFile("received_data_from_server.json");
                 json j;
+                for (size_t i = 0; i < csvData.size(); ++i) {
+                    j["row" + to_string(i)] = csvData[i];
+                }
 
-                if (inFile) {
+                ofstream jsonFile("file_content.json");
+                jsonFile << j.dump(4);
+                jsonFile.close();
+
+                // Veriyi WebSocket üzerinden gönder
+                string fileContent = j.dump();
+                unsigned char buffer[LWS_PRE + fileContent.size()];
+                memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
+                lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
+            }
+        } else if (command == "message") {
+            string message;
+            cout << "Enter a message to send to the server: ";
+            getline(cin, message);
+
+            if (!message.empty()) {
+                unsigned char buffer[LWS_PRE + message.size()];
+                memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
+                lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
+            }
+        } else if (command == "exit") {
+            stop();
+        }
+    }
+}
+
+int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
+                                         void *user, void *in, size_t len) {
+    switch (reason) {
+        case LWS_CALLBACK_CLIENT_RECEIVE: {
+            string receivedMessage((const char *)in, len);
+            cout << "Received from server: " << receivedMessage << endl;
+
+            // Mevcut JSON dosyasını aç ve oku
+            ifstream inFile("received_data_from_server.json");
+            json j;
+
+            if (inFile) {
                 inFile >> j;  // Eğer dosya zaten varsa ve içerik varsa onu oku
                 inFile.close();
-                }
-
-                // Yeni mesajı satırlara böl
-                vector<string> lines;
-                stringstream ss(receivedMessage);
-                string line;
-                while (getline(ss, line, '\n')) {
-                lines.push_back(line);
-                }
-
-                // Yeni satırları JSON nesnesine ekle
-                json newEntry;
-                newEntry["received_message"] = lines;
-                j.push_back(newEntry);
-
-                // Güncellenmiş JSON'u dosyaya tekrar yaz
-                ofstream outFile("received_data_from_server.json");
-                outFile << j.dump(4) << endl;  // Güzel formatlanmış şekilde JSON'u yaz
-                outFile.close();
-
-                cout << "Text content written to file." << endl;
-
-                lws_callback_on_writable(wsi);
-                break;
             }
 
+            // Yeni mesajı satırlara böl
+            vector<string> lines;
+            stringstream ss(receivedMessage);
+            string line;
+            while (getline(ss, line, '\n')) {
+                lines.push_back(line);
+            }
 
+            // Yeni satırları JSON nesnesine ekle
+            json newEntry;
+            newEntry["received_message"] = lines;
+            j.push_back(newEntry);
 
-            default:
-                break;
+            // Güncellenmiş JSON'u dosyaya tekrar yaz
+            ofstream outFile("received_data_from_server.json");
+            outFile << j.dump(4) << endl;  // Güzel formatlanmış şekilde JSON'u yaz
+            outFile.close();
+
+            cout << "Text content written to file." << endl;
+
+            lws_callback_on_writable(wsi);
+            break;
         }
-        return 0;
+
+        default:
+            break;
     }
-
-    static const struct lws_protocols protocols[];
-
-    struct lws_context_creation_info info;
-    struct lws_context *context;
-    struct lws *wsi;
-    std::string address;
-    int port;
-    bool interrupted;
-};
+    return 0;
+}
 
 const struct lws_protocols WebSocketClient::protocols[] = {
     {"websocket-protocol", WebSocketClient::callback_websockets, 0, 0},
     {NULL, NULL, 0, 0} /* terminator */
 };
-
-int main() {
-    WebSocketClient client("localhost", 8080);
-    if (client.connect()) {
-        cout << "WebSocket Client connected to server\n";
-    }
-
-    json client_json;
-    client_json["address"] = client.getAddress();
-    client_json["port"] = client.getPort();
-    client_json["status"] = "connected";
-
-    ofstream jsonFile("client_info.json");
-    jsonFile << client_json.dump(4);
-    jsonFile.close();
-
-    return 0;
-}

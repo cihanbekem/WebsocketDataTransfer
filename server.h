@@ -1,22 +1,17 @@
-
-#ifndef WEBSOCKETSERVER_H
-#define WEBSOCKETSERVER_H
+#ifndef SERVER_H
+#define SERVER_H
 
 #include <libwebsockets.h>
-#include <string.h>
-#include <iostream>
-#include <thread>
-#include <fstream>
 #include <vector>
+#include <string>
+#include <fstream>
 #include <nlohmann/json.hpp>
-
-using namespace std;
-using json = nlohmann::json;
 
 class WebSocketServer {
 public:
     WebSocketServer(int port);
     ~WebSocketServer();
+
     bool start();
     void stop();
 
@@ -32,8 +27,8 @@ private:
     int port;
     bool interrupted;
 
-    static struct lws *wsi;  
-    static vector<unsigned char> fileBuffer;
+    static struct lws *wsi;
+    static std::vector<unsigned char> fileBuffer;
 };
 
-#endif // WEBSOCKETSERVER_H
+#endif // SERVER_H
