@@ -6,7 +6,6 @@
 #include <string>
 #include <fstream>
 #include <nlohmann/json.hpp>
-#include "message.pb.h"  // Protobuf dosyasını ekliyoruz
 
 class WebSocketServer {
 public:
