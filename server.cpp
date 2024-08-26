@@ -1,37 +1,16 @@
+#include "server.h"
 #include "student.pb.h"
 #include <libwebsockets.h>
 #include <iostream>
 #include <cstring>
 #include <thread>
-//#include "server.h"
+#include <fstream>
+#include <sstream>
 
-using namespace std;
-
-class WebSocketServer {
-public:
-    WebSocketServer(int port);
-    ~WebSocketServer();
-    bool start();
-    void stop();
-    void handleUserInput();
-
-private:
-    static struct lws *wsi;
-    struct lws_context *context;
-    struct lws_context_creation_info info;
-    int port;
-    bool interrupted;
-
-    static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
-                                   void *user, void *in, size_t len);
-
-    static const struct lws_protocols protocols[];
-};
-
-struct lws *WebSocketServer::wsi = nullptr;
+struct lws* WebSocketServer::wsi = nullptr;  // Static üye tanımı
 
 WebSocketServer::WebSocketServer(int port) : port(port), interrupted(false) {
-    memset(&info, 0, sizeof(info));
+    std::memset(&info, 0, sizeof(info));
     info.port = port;
     info.protocols = protocols;
 }
@@ -43,13 +22,13 @@ WebSocketServer::~WebSocketServer() {
 bool WebSocketServer::start() {
     context = lws_create_context(&info);
     if (!context) {
-        cerr << "lws_create_context failed\n";
+        std::cerr << "lws_create_context failed\n";
         return false;
     }
 
-    cout << "Server started on port " << port << endl;
+    std::cout << "Server started on port " << port << std::endl;
 
-    thread inputThread(&WebSocketServer::handleUserInput, this);
+    std::thread inputThread(&WebSocketServer::handleUserInput, this);
 
     while (!interrupted) {
         lws_service(context, 1000);
@@ -64,39 +43,86 @@ void WebSocketServer::stop() {
 }
 
 void WebSocketServer::handleUserInput() {
+    std::string command;
     while (!interrupted) {
-        if (wsi) {
-            string command;
-            cout << "Enter 'exit' to quit: ";
-            getline(cin, command);
+        std::cout << "Enter command (send_protobuf <filename>, send_message <message>, stop): ";
+        std::getline(std::cin, command);
+        processCommand(command);
+    }
+}
 
-            if (command == "exit") {
-                stop();
-            }
+void WebSocketServer::processCommand(const std::string& command) {
+    if (command.rfind("send_protobuf", 0) == 0) {
+        std::string filename = command.substr(14);
+        StudentList studentList;
+        std::ifstream file(filename);
+        std::string line;
+
+        std::getline(file, line); // Skip header
+
+        while (std::getline(file, line)) {
+            std::stringstream ss(line);
+            std::string item;
+            Student* student = studentList.add_students();
+
+            std::getline(ss, item, ',');
+            student->set_student_id(std::stoi(item));
+
+            std::getline(ss, item, ',');
+            student->set_name(item);
+
+            std::getline(ss, item, ',');
+            student->set_age(std::stoi(item));
+
+            std::getline(ss, item, ',');
+            student->set_email(item);
+
+            std::getline(ss, item, ',');
+            student->set_major(item);
+
+            std::getline(ss, item, ',');
+            student->set_gpa(std::stof(item));
         }
+
+        std::string serializedData;
+        studentList.SerializeToString(&serializedData);
+
+        unsigned char buffer[LWS_PRE + serializedData.size()];
+        std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+        lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
+
+        std::cout << "Protobuf data from '" << filename << "' sent." << std::endl;
+
+    } else if (command.rfind("send_message", 0) == 0) {
+        std::string message = command.substr(13);
+        unsigned char buffer[LWS_PRE + message.size()];
+        std::memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
+        lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
+
+        std::cout << "Message sent: " << message << std::endl;
+
+    } else if (command == "stop") {
+        stop();
+    } else {
+        std::cout << "Unknown command." << std::endl;
     }
 }
 
 int WebSocketServer::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                          void *user, void *in, size_t len) {
     switch (reason) {
-        case LWS_CALLBACK_ESTABLISHED:
-            cout << "Client connected" << endl;
-            WebSocketServer::wsi = wsi;
-            break;
-
         case LWS_CALLBACK_RECEIVE: {
-            string receivedData((const char *)in, len);
+            std::string receivedData((const char *)in, len);
             StudentList studentList;
             if (studentList.ParseFromString(receivedData)) {
-                cout << "Received Protobuf data:" << endl;
+                std::cout << "Received Protobuf data:" << std::endl;
                 for (const Student& student : studentList.students()) {
-                    cout << "ID: " << student.student_id() << ", Name: " << student.name()
-                         << ", Age: " << student.age() << ", Email: " << student.email()
-                         << ", Major: " << student.major() << ", GPA: " << student.gpa() << endl;
+                    std::cout << "ID: " << student.student_id() << ", Name: " << student.name()
+                             << ", Age: " << student.age() << ", Email: " << student.email()
+                             << ", Major: " << student.major() << ", GPA: " << student.gpa() << std::endl;
                 }
             } else {
-                cout << "Received unknown data: " << receivedData << endl;
+                std::cout << "Received message: " << receivedData << std::endl;
             }
             break;
         }
@@ -111,8 +137,3 @@ const struct lws_protocols WebSocketServer::protocols[] = {
     {"websocket-protocol", WebSocketServer::callback_websockets, 0, 0},
     {NULL, NULL, 0, 0}
 };
-
-WebSocketServer* createServer(int port) {
-    return new WebSocketServer(port);
-}
-

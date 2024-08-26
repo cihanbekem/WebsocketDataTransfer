@@ -4,6 +4,7 @@
 #include <libwebsockets.h>
 #include "student.pb.h"
 #include <string>
+#include <atomic>
 
 class WebSocketServer {
 public:
@@ -12,19 +13,17 @@ public:
 
     bool start();
     void stop();
-    static WebSocketServer* createServer(int port); // Burada eklediğiniz fonksiyon bildirimi
-    // Diğer metodlar
 
 private:
-    // Üye değişkenler
     int port;
-    bool interrupted;
+    std::atomic<bool> interrupted;
     lws_context* context;
     struct lws_context_creation_info info;
 
     static struct lws* wsi;
 
     void handleUserInput();
+    void processCommand(const std::string& command);
     static int callback_websockets(struct lws* wsi, enum lws_callback_reasons reason,
                                    void* user, void* in, size_t len);
 

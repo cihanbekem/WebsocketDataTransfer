@@ -1,46 +1,69 @@
-#include "server.h"
 #include "client.h"
+#include "server.h"
 #include <iostream>
 #include <string>
+#include <thread>
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <client|server> [address] [port]" << std::endl;
-        return 1;
+void runClient(const std::string& address, int port) {
+    WebSocketClient client(address, port);
+    if (client.connect()) {
+        std::cout << "Client connected to " << address << ":" << port << std::endl;
+
+        std::thread inputThread([&client]() {
+            client.handleUserInput(); // Start user input handling in this thread
+        });
+
+        // Use the public method to get context for service loop
+        while (!client.interrupted) {
+            lws_service(client.getContext(), 1000);
+        }
+
+        inputThread.join();
+    } else {
+        std::cerr << "Failed to connect the client." << std::endl;
     }
+}
 
-    std::string mode = argv[1];
+void runServer(int port) {
+    WebSocketServer server(port);
+    if (server.start()) {
+        std::cout << "Server running on port " << port << std::endl;
+        std::cout << "Press Enter to stop the server..." << std::endl;
+        std::cin.get();  // Wait for Enter key to stop the server
+        server.stop();
+    } else {
+        std::cerr << "Failed to start the server." << std::endl;
+    }
+}
+
+int main() {
+    std::string mode;
+    std::cout << "Enter mode (client or server): ";
+    std::getline(std::cin, mode);
 
     if (mode == "server") {
-        int port = 8080; // Varsayılan port
-        if (argc >= 3) {
-            port = std::stoi(argv[2]);
+        int port = 8080; // Default port for server
+        std::cout << "Enter port number (default 8080): ";
+        std::string portStr;
+        std::getline(std::cin, portStr);
+        if (!portStr.empty()) {
+            port = std::stoi(portStr);
         }
-        WebSocketServer server(port);
-        if (server.start()) {
-            std::cout << "Server is running on port " << port << ". Press Enter to stop..." << std::endl;
-            std::cin.get();
-            server.stop();
-        } else {
-            std::cerr << "Failed to start the server." << std::endl;
-            return 1;
-        }
+        runServer(port);
     } else if (mode == "client") {
-        std::string address = "localhost"; // Varsayılan adres
-        int port = 8080; // Varsayılan port
-        if (argc >= 4) {
-            address = argv[2];
-            port = std::stoi(argv[3]);
+        std::string address = "localhost"; // Default address for client
+        int port = 8080; // Default port for client
+        std::cout << "Enter server address (default localhost): ";
+        std::getline(std::cin, address);
+        std::cout << "Enter port number (default 8080): ";
+        std::string portStr;
+        std::getline(std::cin, portStr);
+        if (!portStr.empty()) {
+            port = std::stoi(portStr);
         }
-        WebSocketClient client(address, port);
-        if (client.connect()) {
-            std::cout << "Client is connected to the server." << std::endl;
-        } else {
-            std::cerr << "Failed to connect the client to the server." << std::endl;
-            return 1;
-        }
+        runClient(address, port);
     } else {
-        std::cerr << "Invalid mode. Use 'client' or 'server'." << std::endl;
+        std::cerr << "Invalid mode specified. Use 'client' or 'server'." << std::endl;
         return 1;
     }
 

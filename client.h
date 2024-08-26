@@ -3,8 +3,8 @@
 
 #include <libwebsockets.h>
 #include <string>
+#include <atomic>
 #include "student.pb.h"
-//#include "client.h"
 
 class WebSocketClient {
 public:
@@ -16,8 +16,16 @@ public:
     std::string getAddress() const;
     int getPort() const;
 
-private:
+    // Publicly expose the interrupted flag for the thread to check
+    std::atomic<bool> interrupted;
+
+    // Make handleUserInput public to call it from main
     void handleUserInput();
+
+    // Accessor for context (not typically recommended, consider alternatives)
+    lws_context* getContext() const;
+
+private:
     static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                    void *user, void *in, size_t len);
 
@@ -27,9 +35,8 @@ private:
     struct lws_context *context;
     std::string address;
     int port;
-    bool interrupted;
 
-    static struct lws *wsi;
+    static struct lws *wsi;  // Static üye tanımı
 };
 
 #endif // CLIENT_H

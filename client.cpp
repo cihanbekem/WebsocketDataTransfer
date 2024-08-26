@@ -1,3 +1,4 @@
+#include "client.h"
 #include "student.pb.h"
 #include <libwebsockets.h>
 #include <iostream>
@@ -6,35 +7,11 @@
 #include <cstring>
 #include <thread>
 
-using namespace std;
+struct lws* WebSocketClient::wsi = nullptr;  // Static üye tanımı
 
-class WebSocketClient {
-public:
-    WebSocketClient(const string& address, int port);
-    ~WebSocketClient();
-    bool connect();
-    void stop();
-    void handleUserInput();
-
-private:
-    static struct lws *wsi;
-    struct lws_context *context;
-    struct lws_context_creation_info info;
-    string address;
-    int port;
-    bool interrupted;
-
-    static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
-                                   void *user, void *in, size_t len);
-
-    static const struct lws_protocols protocols[];
-};
-
-struct lws *WebSocketClient::wsi = nullptr;
-
-WebSocketClient::WebSocketClient(const string& address, int port)
+WebSocketClient::WebSocketClient(const std::string& address, int port)
     : address(address), port(port), interrupted(false) {
-    memset(&info, 0, sizeof(info));
+    std::memset(&info, 0, sizeof(info));
     info.protocols = protocols;
 }
 
@@ -45,7 +22,7 @@ WebSocketClient::~WebSocketClient() {
 bool WebSocketClient::connect() {
     context = lws_create_context(&info);
     if (!context) {
-        cout << "lws_create_context failed\n";
+        std::cerr << "lws_create_context failed\n";
         return false;
     }
 
@@ -61,17 +38,10 @@ bool WebSocketClient::connect() {
 
     wsi = lws_client_connect_via_info(&ccinfo);
     if (!wsi) {
-        cout << "lws_client_connect_via_info failed\n";
+        std::cerr << "lws_client_connect_via_info failed\n";
         return false;
     }
 
-    thread inputThread(&WebSocketClient::handleUserInput, this);
-
-    while (!interrupted) {
-        lws_service(context, 1000);
-    }
-
-    inputThread.join();
     return true;
 }
 
@@ -81,50 +51,50 @@ void WebSocketClient::stop() {
 
 void WebSocketClient::handleUserInput() {
     while (!interrupted) {
-        string command;
-        cout << "Enter 'send_csv <filename>' to send a CSV file or 'exit' to quit: ";
-        getline(cin, command);
+        std::string command;
+        std::cout << "Enter 'send_csv <filename>' to send a CSV file or 'exit' to quit: ";
+        std::getline(std::cin, command);
 
         if (command.rfind("send_csv", 0) == 0) {
-            string filename = command.substr(9);
+            std::string filename = command.substr(9);
             StudentList studentList;
-            ifstream file(filename);
-            string line;
+            std::ifstream file(filename);
+            std::string line;
 
-            getline(file, line); // Skip header
+            std::getline(file, line); // Skip header
 
-            while (getline(file, line)) {
-                stringstream ss(line);
-                string item;
+            while (std::getline(file, line)) {
+                std::stringstream ss(line);
+                std::string item;
                 Student* student = studentList.add_students();
 
-                getline(ss, item, ',');
-                student->set_student_id(stoi(item));
+                std::getline(ss, item, ',');
+                student->set_student_id(std::stoi(item));
 
-                getline(ss, item, ',');
+                std::getline(ss, item, ',');
                 student->set_name(item);
 
-                getline(ss, item, ',');
-                student->set_age(stoi(item));
+                std::getline(ss, item, ',');
+                student->set_age(std::stoi(item));
 
-                getline(ss, item, ',');
+                std::getline(ss, item, ',');
                 student->set_email(item);
 
-                getline(ss, item, ',');
+                std::getline(ss, item, ',');
                 student->set_major(item);
 
-                getline(ss, item, ',');
-                student->set_gpa(stof(item));
+                std::getline(ss, item, ',');
+                student->set_gpa(std::stof(item));
             }
 
-            string serializedData;
+            std::string serializedData;
             studentList.SerializeToString(&serializedData);
 
             unsigned char buffer[LWS_PRE + serializedData.size()];
-            memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+            std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
             lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
 
-            cout << "CSV data from '" << filename << "' sent as Protobuf." << endl;
+            std::cout << "CSV data from '" << filename << "' sent as Protobuf." << std::endl;
 
         } else if (command == "exit") {
             stop();
@@ -136,7 +106,7 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
                                          void *user, void *in, size_t len) {
     switch (reason) {
         case LWS_CALLBACK_RECEIVE:
-            cout << "Received message from server." << endl;
+            std::cout << "Received message from server." << std::endl;
             break;
 
         default:
@@ -150,7 +120,6 @@ const struct lws_protocols WebSocketClient::protocols[] = {
     {NULL, NULL, 0, 0}
 };
 
-WebSocketClient* createClient(const std::string& address, int port) {
-    return new WebSocketClient(address, port);
+lws_context* WebSocketClient::getContext() const {
+    return context;
 }
-
