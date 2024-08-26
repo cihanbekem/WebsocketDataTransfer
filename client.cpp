@@ -1,8 +1,7 @@
 #include "client.h"
+#include "student.pb.h"
 #include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
+#include <cstring>
 #include <thread>
 
 using namespace std;
@@ -22,7 +21,7 @@ WebSocketClient::~WebSocketClient() {
 bool WebSocketClient::connect() {
     context = lws_create_context(&info);
     if (!context) {
-        cerr << "lws_create_context failed\n";
+        cout << "lws_create_context failed\n";
         return false;
     }
 
@@ -38,7 +37,7 @@ bool WebSocketClient::connect() {
 
     wsi = lws_client_connect_via_info(&ccinfo);
     if (!wsi) {
-        cerr << "lws_client_connect_via_info failed\n";
+        cout << "lws_client_connect_via_info failed\n";
         return false;
     }
 
@@ -67,58 +66,38 @@ int WebSocketClient::getPort() const {
 void WebSocketClient::handleUserInput() {
     while (!interrupted) {
         string command;
-        cout << "Enter 'send' to send a CSV file, 'message' to send a message, or 'exit' to quit: ";
+        cout << "Enter 'send_pb' to send protobuf data or 'exit' to quit: ";
         getline(cin, command);
 
-        if (command == "send") {
-            string filePath;
-            cout << "Enter the path of the CSV file to send: ";
-            getline(cin, filePath);
+        if (command == "send_pb") {
+            StudentList studentList;
 
-            if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
-                ifstream file(filePath);
-                if (!file.is_open()) {
-                    cerr << "Could not open file." << endl;
-                    continue;
-                }
+            // Örnek veriler ekleyelim
+            Student* student1 = studentList.add_students();
+            student1->set_student_id(1);
+            student1->set_name("Alice Johnson");
+            student1->set_age(21);
+            student1->set_email("alice.johnson@example.com");
+            student1->set_major("Physics");
+            student1->set_gpa(3.9);
 
-                StudentList studentList;
-                string line;
-                getline(file, line);  // Skip header line
+            Student* student2 = studentList.add_students();
+            student2->set_student_id(2);
+            student2->set_name("Bob Smith");
+            student2->set_age(22);
+            student2->set_email("bob.smith@example.com");
+            student2->set_major("Chemistry");
+            student2->set_gpa(3.6);
 
-                while (getline(file, line)) {
-                    stringstream ss(line);
-                    string token;
-                    Student* student = studentList.add_students();
+            string serializedData;
+            studentList.SerializeToString(&serializedData);
 
-                    getline(ss, token, ','); student->set_student_id(stoi(token));
-                    getline(ss, token, ','); student->set_name(token);
-                    getline(ss, token, ','); student->set_age(stoi(token));
-                    getline(ss, token, ','); student->set_email(token);
-                    getline(ss, token, ','); student->set_major(token);
-                    getline(ss, token, ','); student->set_gpa(stof(token));
-                }
+            unsigned char buffer[LWS_PRE + serializedData.size()];
+            memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+            lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
 
-                file.close();
+            cout << "Protobuf data sent." << endl;
 
-                // Send Protobuf data
-                string serializedData;
-                studentList.SerializeToString(&serializedData);
-
-                unsigned char buffer[LWS_PRE + serializedData.size()];
-                memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
-                lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
-            }
-        } else if (command == "message") {
-            string message;
-            cout << "Enter the message to send to the server: ";
-            getline(cin, message);
-
-            if (!message.empty()) {
-                unsigned char buffer[LWS_PRE + message.size()];
-                memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
-                lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
-            }
         } else if (command == "exit") {
             stop();
         }
@@ -134,16 +113,13 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
             StudentList studentList;
             if (studentList.ParseFromString(receivedMessage)) {
                 cout << "Received Protobuf data:" << endl;
-                for (const auto& student : studentList.students()) {
-                    cout << "Student ID: " << student.student_id() << endl;
-                    cout << "Name: " << student.name() << endl;
-                    cout << "Age: " << student.age() << endl;
-                    cout << "Email: " << student.email() << endl;
-                    cout << "Major: " << student.major() << endl;
-                    cout << "GPA: " << student.gpa() << endl;
+                for (const Student& student : studentList.students()) {
+                    cout << "ID: " << student.student_id() << ", Name: " << student.name()
+                         << ", Age: " << student.age() << ", Email: " << student.email()
+                         << ", Major: " << student.major() << ", GPA: " << student.gpa() << endl;
                 }
             } else {
-                cout << "Received unknown format data." << endl;
+                cout << "Received Text data: " << receivedMessage << endl;
             }
 
             lws_callback_on_writable(wsi);

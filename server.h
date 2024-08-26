@@ -3,25 +3,30 @@
 
 #include <libwebsockets.h>
 #include <vector>
-#include "student.pb.h"
+#include <string>
+#include "student.pb.h"  // Protobuf dosyasını ekliyoruz
 
 class WebSocketServer {
 public:
     WebSocketServer(int port);
     ~WebSocketServer();
+
     bool start();
     void stop();
 
 private:
+    void handleUserInput();
     static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                    void *user, void *in, size_t len);
-    lws_context_creation_info info;
-    lws_context *context;
+
+    static const struct lws_protocols protocols[];
+
+    struct lws_context_creation_info info;
+    struct lws_context *context;
     int port;
     bool interrupted;
 
-    static std::vector<unsigned char> fileBuffer;
-    static const struct lws_protocols protocols[];
+    static struct lws *wsi;
 };
 
 #endif // SERVER_H

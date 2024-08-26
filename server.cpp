@@ -1,20 +1,18 @@
 #include "server.h"
+#include "student.pb.h"
 #include <iostream>
 #include <fstream>
+#include <thread>
 #include <sstream>
-#include <cstring>
 
 using namespace std;
 
-vector<unsigned char> WebSocketServer::fileBuffer;
+struct lws *WebSocketServer::wsi = nullptr;
 
-WebSocketServer::WebSocketServer(int port)
-    : port(port), interrupted(false) {
+WebSocketServer::WebSocketServer(int port) : port(port), interrupted(false) {
     memset(&info, 0, sizeof(info));
     info.port = port;
     info.protocols = protocols;
-    info.gid = -1;
-    info.uid = -1;
 }
 
 WebSocketServer::~WebSocketServer() {
@@ -28,12 +26,15 @@ bool WebSocketServer::start() {
         return false;
     }
 
-    cout << "Server is running on port " << port << ". Press Enter to stop..." << endl;
+    cout << "Server started on port " << port << endl;
+
+    thread inputThread(&WebSocketServer::handleUserInput, this);
 
     while (!interrupted) {
         lws_service(context, 1000);
     }
 
+    inputThread.join();
     return true;
 }
 
@@ -41,26 +42,76 @@ void WebSocketServer::stop() {
     interrupted = true;
 }
 
+void WebSocketServer::handleUserInput() {
+    while (!interrupted) {
+        if (wsi) {
+            string command;
+            cout << "Enter 'send_pb' to send protobuf data or 'exit' to quit: ";
+            getline(cin, command);
+
+            if (command == "send_pb") {
+                StudentList studentList;
+
+                // Örnek veriler ekleyelim
+                Student* student1 = studentList.add_students();
+                student1->set_student_id(1);
+                student1->set_name("John Doe");
+                student1->set_age(20);
+                student1->set_email("john.doe@example.com");
+                student1->set_major("Computer Science");
+                student1->set_gpa(3.5);
+
+                Student* student2 = studentList.add_students();
+                student2->set_student_id(2);
+                student2->set_name("Jane Smith");
+                student2->set_age(22);
+                student2->set_email("jane.smith@example.com");
+                student2->set_major("Mathematics");
+                student2->set_gpa(3.8);
+
+                string serializedData;
+                studentList.SerializeToString(&serializedData);
+
+                unsigned char buffer[LWS_PRE + serializedData.size()];
+                memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+                lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
+
+                cout << "Protobuf data sent." << endl;
+
+            } else if (command == "exit") {
+                stop();
+            }
+        }
+    }
+}
+
 int WebSocketServer::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                          void *user, void *in, size_t len) {
     switch (reason) {
+        case LWS_CALLBACK_ESTABLISHED:
+            cout << "Client connected" << endl;
+            WebSocketServer::wsi = wsi;
+            break;
+
         case LWS_CALLBACK_RECEIVE: {
+            string receivedData((const char *)in, len);
+
             StudentList studentList;
-            if (studentList.ParseFromArray(in, len)) {
+            if (studentList.ParseFromString(receivedData)) {
                 cout << "Received Protobuf data:" << endl;
-                for (const auto& student : studentList.students()) {
-                    cout << "Student ID: " << student.student_id() << endl;
-                    cout << "Name: " << student.name() << endl;
-                    cout << "Age: " << student.age() << endl;
-                    cout << "Email: " << student.email() << endl;
-                    cout << "Major: " << student.major() << endl;
-                    cout << "GPA: " << student.gpa() << endl;
+                for (const Student& student : studentList.students()) {
+                    cout << "ID: " << student.student_id() << ", Name: " << student.name()
+                         << ", Age: " << student.age() << ", Email: " << student.email()
+                         << ", Major: " << student.major() << ", GPA: " << student.gpa() << endl;
                 }
             } else {
-                cout << "Received unknown format data." << endl;
+                cout << "Received Text data: " << receivedData << endl;
             }
+            
+            lws_callback_on_writable(wsi);
             break;
         }
+
         default:
             break;
     }
