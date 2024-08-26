@@ -21,7 +21,7 @@ WebSocketClient::~WebSocketClient() {
 bool WebSocketClient::connect() {
     context = lws_create_context(&info);
     if (!context) {
-        cout << "lws_create_context failed\n";
+        cerr << "lws_create_context failed\n";
         return false;
     }
 
@@ -37,7 +37,7 @@ bool WebSocketClient::connect() {
 
     wsi = lws_client_connect_via_info(&ccinfo);
     if (!wsi) {
-        cout << "lws_client_connect_via_info failed\n";
+        cerr << "lws_client_connect_via_info failed\n";
         return false;
     }
 
