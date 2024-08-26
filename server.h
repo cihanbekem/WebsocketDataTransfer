@@ -2,9 +2,8 @@
 #define SERVER_H
 
 #include <libwebsockets.h>
-#include <vector>
+#include "student.pb.h"
 #include <string>
-#include "student.pb.h"  // Protobuf dosyasını ekliyoruz
 
 class WebSocketServer {
 public:
@@ -13,20 +12,23 @@ public:
 
     bool start();
     void stop();
+    static WebSocketServer* createServer(int port); // Burada eklediğiniz fonksiyon bildirimi
+    // Diğer metodlar
 
 private:
-    void handleUserInput();
-    static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
-                                   void *user, void *in, size_t len);
-
-    static const struct lws_protocols protocols[];
-
-    struct lws_context_creation_info info;
-    struct lws_context *context;
+    // Üye değişkenler
     int port;
     bool interrupted;
+    lws_context* context;
+    struct lws_context_creation_info info;
 
-    static struct lws *wsi;
+    static struct lws* wsi;
+
+    void handleUserInput();
+    static int callback_websockets(struct lws* wsi, enum lws_callback_reasons reason,
+                                   void* user, void* in, size_t len);
+
+    static const struct lws_protocols protocols[];
 };
 
 #endif // SERVER_H

@@ -1,10 +1,32 @@
-#include "server.h"
 #include "student.pb.h"
+#include <libwebsockets.h>
 #include <iostream>
-#include <thread>
 #include <cstring>
+#include <thread>
+//#include "server.h"
 
 using namespace std;
+
+class WebSocketServer {
+public:
+    WebSocketServer(int port);
+    ~WebSocketServer();
+    bool start();
+    void stop();
+    void handleUserInput();
+
+private:
+    static struct lws *wsi;
+    struct lws_context *context;
+    struct lws_context_creation_info info;
+    int port;
+    bool interrupted;
+
+    static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
+                                   void *user, void *in, size_t len);
+
+    static const struct lws_protocols protocols[];
+};
 
 struct lws *WebSocketServer::wsi = nullptr;
 
@@ -45,39 +67,10 @@ void WebSocketServer::handleUserInput() {
     while (!interrupted) {
         if (wsi) {
             string command;
-            cout << "Enter 'send_pb' to send protobuf data or 'exit' to quit: ";
+            cout << "Enter 'exit' to quit: ";
             getline(cin, command);
 
-            if (command == "send_pb") {
-                StudentList studentList;
-
-                // Örnek veriler ekleyelim
-                Student* student1 = studentList.add_students();
-                student1->set_student_id(1);
-                student1->set_name("John Doe");
-                student1->set_age(20);
-                student1->set_email("john.doe@example.com");
-                student1->set_major("Computer Science");
-                student1->set_gpa(3.5);
-
-                Student* student2 = studentList.add_students();
-                student2->set_student_id(2);
-                student2->set_name("Jane Smith");
-                student2->set_age(22);
-                student2->set_email("jane.smith@example.com");
-                student2->set_major("Mathematics");
-                student2->set_gpa(3.8);
-
-                string serializedData;
-                studentList.SerializeToString(&serializedData);
-
-                unsigned char buffer[LWS_PRE + serializedData.size()];
-                memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
-                lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
-
-                cout << "Protobuf data sent." << endl;
-
-            } else if (command == "exit") {
+            if (command == "exit") {
                 stop();
             }
         }
@@ -94,7 +87,6 @@ int WebSocketServer::callback_websockets(struct lws *wsi, enum lws_callback_reas
 
         case LWS_CALLBACK_RECEIVE: {
             string receivedData((const char *)in, len);
-
             StudentList studentList;
             if (studentList.ParseFromString(receivedData)) {
                 cout << "Received Protobuf data:" << endl;
@@ -104,10 +96,8 @@ int WebSocketServer::callback_websockets(struct lws *wsi, enum lws_callback_reas
                          << ", Major: " << student.major() << ", GPA: " << student.gpa() << endl;
                 }
             } else {
-                cout << "Received Text data: " << receivedData << endl;
+                cout << "Received unknown data: " << receivedData << endl;
             }
-            
-            lws_callback_on_writable(wsi);
             break;
         }
 
@@ -119,5 +109,10 @@ int WebSocketServer::callback_websockets(struct lws *wsi, enum lws_callback_reas
 
 const struct lws_protocols WebSocketServer::protocols[] = {
     {"websocket-protocol", WebSocketServer::callback_websockets, 0, 0},
-    {NULL, NULL, 0, 0} /* terminator */
+    {NULL, NULL, 0, 0}
 };
+
+WebSocketServer* createServer(int port) {
+    return new WebSocketServer(port);
+}
+
