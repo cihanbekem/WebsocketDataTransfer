@@ -1,16 +1,13 @@
 #include "client.h"
 #include <iostream>
-#include <cstring>
-#include <thread>
 #include <fstream>
-#include <vector>
 #include <sstream>
-#include <nlohmann/json.hpp>
+#include <vector>
+#include <thread>
 
 using namespace std;
-using json = nlohmann::json;
 
-struct lws *WebSocketClient::wsi = nullptr; // Eksik tanım
+struct lws *WebSocketClient::wsi = nullptr;
 
 WebSocketClient::WebSocketClient(const string& address, int port)
     : address(address), port(port), interrupted(false) {
@@ -25,7 +22,7 @@ WebSocketClient::~WebSocketClient() {
 bool WebSocketClient::connect() {
     context = lws_create_context(&info);
     if (!context) {
-        cout << "lws_create_context failed\n";
+        cerr << "lws_create_context failed\n";
         return false;
     }
 
@@ -41,7 +38,7 @@ bool WebSocketClient::connect() {
 
     wsi = lws_client_connect_via_info(&ccinfo);
     if (!wsi) {
-        cout << "lws_client_connect_via_info failed\n";
+        cerr << "lws_client_connect_via_info failed\n";
         return false;
     }
 
@@ -70,56 +67,51 @@ int WebSocketClient::getPort() const {
 void WebSocketClient::handleUserInput() {
     while (!interrupted) {
         string command;
-        cout << "Enter 'send' to send a file, 'message' to send a message, or 'exit' to quit: ";
+        cout << "Enter 'send' to send a CSV file, 'message' to send a message, or 'exit' to quit: ";
         getline(cin, command);
 
         if (command == "send") {
             string filePath;
-            cout << "Enter the path of the file to send: ";
+            cout << "Enter the path of the CSV file to send: ";
             getline(cin, filePath);
 
             if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
                 ifstream file(filePath);
                 if (!file.is_open()) {
-                    cerr << "Failed to open file." << endl;
+                    cerr << "Could not open file." << endl;
                     continue;
                 }
 
-                vector<vector<string>> csvData;
+                StudentList studentList;
                 string line;
+                getline(file, line);  // Skip header line
 
                 while (getline(file, line)) {
                     stringstream ss(line);
-                    string item;
-                    vector<string> row;
+                    string token;
+                    Student* student = studentList.add_students();
 
-                    while (getline(ss, item, ',')) {
-                        row.push_back(item);
-                    }
-
-                    csvData.push_back(row);
+                    getline(ss, token, ','); student->set_student_id(stoi(token));
+                    getline(ss, token, ','); student->set_name(token);
+                    getline(ss, token, ','); student->set_age(stoi(token));
+                    getline(ss, token, ','); student->set_email(token);
+                    getline(ss, token, ','); student->set_major(token);
+                    getline(ss, token, ','); student->set_gpa(stof(token));
                 }
 
                 file.close();
 
-                json j;
-                for (size_t i = 0; i < csvData.size(); ++i) {
-                    j["row" + to_string(i)] = csvData[i];
-                }
+                // Send Protobuf data
+                string serializedData;
+                studentList.SerializeToString(&serializedData);
 
-                ofstream jsonFile("file_content.json");
-                jsonFile << j.dump(4);
-                jsonFile.close();
-
-                // Veriyi WebSocket üzerinden gönder
-                string fileContent = j.dump();
-                unsigned char buffer[LWS_PRE + fileContent.size()];
-                memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
-                lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
+                unsigned char buffer[LWS_PRE + serializedData.size()];
+                memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+                lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
             }
         } else if (command == "message") {
             string message;
-            cout << "Enter a message to send to the server: ";
+            cout << "Enter the message to send to the server: ";
             getline(cin, message);
 
             if (!message.empty()) {
@@ -138,36 +130,21 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
     switch (reason) {
         case LWS_CALLBACK_CLIENT_RECEIVE: {
             string receivedMessage((const char *)in, len);
-            cout << "Received from server: " << receivedMessage << endl;
 
-            // Mevcut JSON dosyasını aç ve oku
-            ifstream inFile("received_data_from_server.json");
-            json j;
-
-            if (inFile) {
-                inFile >> j;  // Eğer dosya zaten varsa ve içerik varsa onu oku
-                inFile.close();
+            StudentList studentList;
+            if (studentList.ParseFromString(receivedMessage)) {
+                cout << "Received Protobuf data:" << endl;
+                for (const auto& student : studentList.students()) {
+                    cout << "Student ID: " << student.student_id() << endl;
+                    cout << "Name: " << student.name() << endl;
+                    cout << "Age: " << student.age() << endl;
+                    cout << "Email: " << student.email() << endl;
+                    cout << "Major: " << student.major() << endl;
+                    cout << "GPA: " << student.gpa() << endl;
+                }
+            } else {
+                cout << "Received unknown format data." << endl;
             }
-
-            // Yeni mesajı satırlara böl
-            vector<string> lines;
-            stringstream ss(receivedMessage);
-            string line;
-            while (getline(ss, line, '\n')) {
-                lines.push_back(line);
-            }
-
-            // Yeni satırları JSON nesnesine ekle
-            json newEntry;
-            newEntry["received_message"] = lines;
-            j.push_back(newEntry);
-
-            // Güncellenmiş JSON'u dosyaya tekrar yaz
-            ofstream outFile("received_data_from_server.json");
-            outFile << j.dump(4) << endl;  // Güzel formatlanmış şekilde JSON'u yaz
-            outFile.close();
-
-            cout << "Text content written to file." << endl;
 
             lws_callback_on_writable(wsi);
             break;
