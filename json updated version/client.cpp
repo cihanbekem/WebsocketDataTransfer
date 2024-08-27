@@ -1,3 +1,6 @@
+// g++ -o myprogram main.cpp server.cpp client.cpp -lwebsockets
+// ./myprogram
+
 #include "client.h"
 #include <iostream>
 #include <cstring>
