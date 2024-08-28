@@ -111,6 +111,11 @@ void WebSocketClient::handleUserInput() {
                     jsonData.push_back(jsonStudent);
                 }
                 serializedData = jsonData.dump();
+
+                // Save JSON to file
+                std::ofstream jsonFile("file_content.json");
+                jsonFile << jsonData.dump(4);
+                jsonFile.close();
             }
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = end - start;
