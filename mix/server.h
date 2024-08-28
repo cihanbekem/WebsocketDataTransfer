@@ -2,9 +2,9 @@
 #define SERVER_H
 
 #include <libwebsockets.h>
-#include <vector>
+#include "student.pb.h"
 #include <string>
-#include <nlohmann/json.hpp>
+#include <atomic>
 
 class WebSocketServer {
 public:
@@ -15,19 +15,20 @@ public:
     void stop();
 
 private:
+    int port;
+    std::atomic<bool> interrupted;
+    lws_context* context;
+    struct lws_context_creation_info info;
+
+    static struct lws* wsi;
+
     void handleUserInput();
-    static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
-                                   void *user, void *in, size_t len);
+    void processCommand(const std::string& command);
+    void sendData(const std::string& data);
+    static int callback_websockets(struct lws* wsi, enum lws_callback_reasons reason,
+                                   void* user, void* in, size_t len);
 
     static const struct lws_protocols protocols[];
-
-    struct lws_context_creation_info info;
-    struct lws_context *context;
-    int port;
-    bool interrupted;
-
-    static struct lws *wsi;
-    static std::vector<unsigned char> fileBuffer;
 };
 
 #endif // SERVER_H

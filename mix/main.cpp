@@ -1,72 +1,68 @@
 #include "server.h"
 #include "client.h"
 #include <iostream>
-#include <thread>
-#include <chrono>
 #include <string>
+#include <thread>
 
-using namespace std;
+void runClient(const std::string& address, int port) {
+    WebSocketClient client(address, port);
+    if (client.connect()) {
+        std::cout << "Client connected to " << address << ":" << port << std::endl;
+
+        std::thread inputThread([&client]() {
+            client.handleUserInput(); // Start user input handling in this thread
+        });
+
+        while (!client.interrupted) {
+            lws_service(client.getContext(), 1000);
+        }
+
+        inputThread.join();
+    } else {
+        std::cerr << "Failed to connect the client." << std::endl;
+    }
+}
+
+void runServer(int port) {
+    WebSocketServer server(port);
+    if (server.start()) {
+        std::cout << "Server running on port " << port << std::endl;
+        std::cout << "Press Enter to stop the server..." << std::endl;
+        std::cin.get();  // Wait for Enter key to stop the server
+        server.stop();
+    } else {
+        std::cerr << "Failed to start the server." << std::endl;
+    }
+}
 
 int main() {
-    string mode;
-    cout << "Sunucu başlatmak için 'server', istemci başlatmak için 'client' yazın: ";
-    getline(cin, mode);
+    std::string mode;
+    std::cout << "Enter mode (client or server): ";
+    std::getline(std::cin, mode);
 
     if (mode == "server") {
-        WebSocketServer server(8080); // Sunucu portu 8080
-        if (server.start()) {
-            cout << "Server is running. Press Enter to stop..." << endl;
-            cin.get(); // Kullanıcının Enter tuşuna basmasını bekle
-            server.stop(); // Sunucuyu durdur
-        } else {
-            cerr << "Failed to start the server." << endl;
-            return 1;
+        int port = 8080; // Default port for server
+        std::cout << "Enter port number (default 8080): ";
+        std::string portStr;
+        std::getline(std::cin, portStr);
+        if (!portStr.empty()) {
+            port = std::stoi(portStr);
         }
+        runServer(port);
     } else if (mode == "client") {
-        WebSocketClient client("localhost", 8080); // localhost ve port 8080
-        auto start = chrono::steady_clock::now(); // Zaman ölçümüne başla
-        if (client.connect()) {
-            auto end = chrono::steady_clock::now(); // Zaman ölçümünü bitir
-            chrono::duration<double> elapsed = end - start;
-            cout << "Client connected to server in " << elapsed.count() << " seconds." << endl;
-            cout << "Enter 'send' to send a file or 'message' to send a message: ";
-            
-            string command;
-            while (getline(cin, command)) {
-                if (command == "send") {
-                    // Dosya gönderimi işlemi
-                    string filePath;
-                    cout << "Enter the path of the file to send: ";
-                    getline(cin, filePath);
-                    
-                    // Zaman ölçümünü başlat
-                    auto startSend = chrono::steady_clock::now();
-                    // Dosyayı gönder (implementasyon eksik)
-                    auto endSend = chrono::steady_clock::now();
-                    chrono::duration<double> elapsedSend = endSend - startSend;
-                    cout << "File sent in " << elapsedSend.count() << " seconds." << endl;
-                } else if (command == "message") {
-                    string message;
-                    cout << "Enter a message to send to the server: ";
-                    getline(cin, message);
-                    
-                    // Zaman ölçümünü başlat
-                    auto startMessage = chrono::steady_clock::now();
-                    // Mesajı gönder (implementasyon eksik)
-                    auto endMessage = chrono::steady_clock::now();
-                    chrono::duration<double> elapsedMessage = endMessage - startMessage;
-                    cout << "Message sent in " << elapsedMessage.count() << " seconds." << endl;
-                } else if (command == "exit") {
-                    client.stop();
-                    break;
-                }
-            }
-        } else {
-            cerr << "Failed to connect to the server." << endl;
-            return 1;
+        std::string address = "localhost"; // Default address for client
+        int port = 8080; // Default port for client
+        std::cout << "Enter server address (default localhost): ";
+        std::getline(std::cin, address);
+        std::cout << "Enter port number (default 8080): ";
+        std::string portStr;
+        std::getline(std::cin, portStr);
+        if (!portStr.empty()) {
+            port = std::stoi(portStr);
         }
+        runClient(address, port);
     } else {
-        cerr << "Geçersiz seçim! 'server' ya da 'client' yazmalısınız." << endl;
+        std::cerr << "Invalid mode specified. Use 'client' or 'server'." << std::endl;
         return 1;
     }
 

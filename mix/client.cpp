@@ -1,21 +1,19 @@
 #include "client.h"
+#include "student.pb.h"
+#include <libwebsockets.h>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <cstring>
 #include <thread>
-#include <fstream>
-#include <vector>
-#include <sstream>
 #include <chrono>
+#include <nlohmann/json.hpp>
 
-using namespace std;
-using json = nlohmann::json;
+struct lws* WebSocketClient::wsi = nullptr;
 
-// Statik değişkenlerin tanımı
-struct lws *WebSocketClient::wsi = nullptr;
-
-WebSocketClient::WebSocketClient(const string& address, int port)
+WebSocketClient::WebSocketClient(const std::string& address, int port)
     : address(address), port(port), interrupted(false) {
-    memset(&info, 0, sizeof(info));
+    std::memset(&info, 0, sizeof(info));
     info.protocols = protocols;
 }
 
@@ -26,7 +24,7 @@ WebSocketClient::~WebSocketClient() {
 bool WebSocketClient::connect() {
     context = lws_create_context(&info);
     if (!context) {
-        cout << "lws_create_context failed\n";
+        std::cerr << "lws_create_context failed\n";
         return false;
     }
 
@@ -42,17 +40,10 @@ bool WebSocketClient::connect() {
 
     wsi = lws_client_connect_via_info(&ccinfo);
     if (!wsi) {
-        cout << "lws_client_connect_via_info failed\n";
+        std::cerr << "lws_client_connect_via_info failed\n";
         return false;
     }
 
-    thread inputThread(&WebSocketClient::handleUserInput, this);
-
-    while (!interrupted) {
-        lws_service(context, 1000);
-    }
-
-    inputThread.join();
     return true;
 }
 
@@ -60,82 +51,77 @@ void WebSocketClient::stop() {
     interrupted = true;
 }
 
-string WebSocketClient::getAddress() const {
-    return address;
-}
-
-int WebSocketClient::getPort() const {
-    return port;
-}
-
 void WebSocketClient::handleUserInput() {
     while (!interrupted) {
-        string command;
-        cout << "Enter 'send' to send a file, 'message' to send a message, or 'exit' to quit: ";
-        getline(cin, command);
+        std::string command;
+        std::cout << "Enter 'send_csv <filename> <format>' to send a CSV file in Protobuf or JSON format or 'exit' to quit: ";
+        std::getline(std::cin, command);
 
-        if (command == "send") {
-            string filePath;
-            cout << "Enter the path of the file to send: ";
-            getline(cin, filePath);
+        if (command.rfind("send_csv", 0) == 0) {
+            std::istringstream stream(command.substr(9));
+            std::string filename, format;
+            stream >> filename >> format;
 
-            if (filePath.size() >= 4 && filePath.substr(filePath.size() - 4) == ".csv") {
-                ifstream file(filePath);
-                if (!file.is_open()) {
-                    cerr << "Failed to open file." << endl;
-                    continue;
-                }
+            bool isProtobuf = (format == "protobuf");
 
-                vector<vector<string>> csvData;
-                string line;
+            StudentList studentList;
+            std::ifstream file(filename);
+            std::string line;
 
-                while (getline(file, line)) {
-                    stringstream ss(line);
-                    string item;
-                    vector<string> row;
+            std::getline(file, line); // Skip header
 
-                    while (getline(ss, item, ',')) {
-                        row.push_back(item);
-                    }
+            while (std::getline(file, line)) {
+                std::stringstream ss(line);
+                std::string item;
+                Student* student = studentList.add_students();
 
-                    csvData.push_back(row);
-                }
+                std::getline(ss, item, ',');
+                student->set_student_id(std::stoi(item));
 
-                file.close();
+                std::getline(ss, item, ',');
+                student->set_name(item);
 
-                json j;
-                for (size_t i = 0; i < csvData.size(); ++i) {
-                    j["row" + to_string(i)] = csvData[i];
-                }
+                std::getline(ss, item, ',');
+                student->set_age(std::stoi(item));
 
-                ofstream jsonFile("file_content.json");
-                jsonFile << j.dump(4);
-                jsonFile.close();
+                std::getline(ss, item, ',');
+                student->set_email(item);
 
-                // Veriyi WebSocket üzerinden gönder
-                string fileContent = j.dump();
-                unsigned char buffer[LWS_PRE + fileContent.size()];
-                memcpy(&buffer[LWS_PRE], fileContent.c_str(), fileContent.size());
-                auto start = chrono::steady_clock::now();
-                lws_write(wsi, &buffer[LWS_PRE], fileContent.size(), LWS_WRITE_TEXT);
-                auto end = chrono::steady_clock::now();
-                chrono::duration<double> elapsedSend = end - start;
-                cout << "File sent in " << elapsedSend.count() << " seconds." << endl;
+                std::getline(ss, item, ',');
+                student->set_major(item);
+
+                std::getline(ss, item, ',');
+                student->set_gpa(std::stof(item));
             }
-        } else if (command == "message") {
-            string message;
-            cout << "Enter a message to send to the server: ";
-            getline(cin, message);
 
-            if (!message.empty()) {
-                unsigned char buffer[LWS_PRE + message.size()];
-                memcpy(&buffer[LWS_PRE], message.c_str(), message.size());
-                auto start = chrono::steady_clock::now();
-                lws_write(wsi, &buffer[LWS_PRE], message.size(), LWS_WRITE_TEXT);
-                auto end = chrono::steady_clock::now();
-                chrono::duration<double> elapsedMessage = end - start;
-                cout << "Message sent in " << elapsedMessage.count() << " seconds." << endl;
+            auto start = std::chrono::high_resolution_clock::now();
+            std::string serializedData;
+            if (isProtobuf) {
+                studentList.SerializeToString(&serializedData);
+            } else {
+                nlohmann::json jsonData;
+                for (const auto& student : studentList.students()) {
+                    nlohmann::json jsonStudent;
+                    jsonStudent["student_id"] = student.student_id();
+                    jsonStudent["name"] = student.name();
+                    jsonStudent["age"] = student.age();
+                    jsonStudent["email"] = student.email();
+                    jsonStudent["major"] = student.major();
+                    jsonStudent["gpa"] = student.gpa();
+                    jsonData.push_back(jsonStudent);
+                }
+                serializedData = jsonData.dump();
             }
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end - start;
+
+            unsigned char buffer[LWS_PRE + serializedData.size()];
+            std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+            lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), isProtobuf ? LWS_WRITE_BINARY : LWS_WRITE_TEXT);
+
+            std::cout << "CSV data from '" << filename << "' sent as " << (isProtobuf ? "Protobuf." : "JSON.") << std::endl;
+            std::cout << "Serialization time: " << elapsed.count() << " seconds" << std::endl;
+
         } else if (command == "exit") {
             stop();
         }
@@ -145,43 +131,41 @@ void WebSocketClient::handleUserInput() {
 int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                          void *user, void *in, size_t len) {
     switch (reason) {
-        case LWS_CALLBACK_CLIENT_RECEIVE: {
-            auto start = chrono::steady_clock::now();
-            string receivedMessage((const char *)in, len);
-            cout << "Received from server: " << receivedMessage << endl;
+        case LWS_CALLBACK_RECEIVE: {
+            std::string receivedData((const char *)in, len);
+            if (receivedData[0] == '{' || receivedData[0] == '[') {  // JSON
+                nlohmann::json jsonData = nlohmann::json::parse(receivedData);
 
-            // Mevcut JSON dosyasını aç ve oku
-            ifstream inFile("received_data_from_server.json");
-            json j;
-
-            if (inFile) {
-                inFile >> j;
-                inFile.close();
+                std::cout << "Received JSON data:" << std::endl;
+                for (const auto& jsonStudent : jsonData) {
+                    std::cout << "ID: " << jsonStudent["student_id"].get<int>()
+                              << ", Name: " << jsonStudent["name"].get<std::string>()
+                              << ", Age: " << jsonStudent["age"].get<int>()
+                              << ", Email: " << jsonStudent["email"].get<std::string>()
+                              << ", Major: " << jsonStudent["major"].get<std::string>()
+                              << ", GPA: " << jsonStudent["gpa"].get<float>() << std::endl;
+                }
+            } else {  // Protobuf
+                StudentList studentList;
+                if (studentList.ParseFromString(receivedData)) {
+                    std::cout << "Received Protobuf data:" << std::endl;
+                    for (const Student& student : studentList.students()) {
+                        std::cout << "ID: " << student.student_id()
+                                  << ", Name: " << student.name()
+                                  << ", Age: " << student.age()
+                                  << ", Email: " << student.email()
+                                  << ", Major: " << student.major()
+                                  << ", GPA: " << student.gpa() << std::endl;
+                    }
+                }
             }
-
-            // Yeni mesajı satırlara böl
-            vector<string> lines;
-            stringstream ss(receivedMessage);
-            string line;
-            while (getline(ss, line, '\n')) lines.push_back(line);
-
-            // Yeni satırları JSON nesnesine ekle
-            json newEntry;
-            newEntry["received_message"] = lines;
-            j.push_back(newEntry);
-
-            // Güncellenmiş JSON'u dosyaya tekrar yaz
-            ofstream outFile("received_data_from_server.json");
-            outFile << j.dump(4) << endl;
-            outFile.close();
-
-            auto end = chrono::steady_clock::now();
-            chrono::duration<double> elapsed = end - start;
-            cout << "Time taken to process received message: " << elapsed.count() << " seconds" << endl;
-
-            lws_callback_on_writable(wsi);
             break;
         }
+
+        case LWS_CALLBACK_CLOSED:
+            std::cout << "WebSocket connection closed." << std::endl;
+            wsi = nullptr;
+            break;
 
         default:
             break;
@@ -191,5 +175,9 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
 
 const struct lws_protocols WebSocketClient::protocols[] = {
     {"websocket-protocol", WebSocketClient::callback_websockets, 0, 0},
-    {NULL, NULL, 0, 0} /* terminator */
+    {NULL, NULL, 0, 0}
 };
+
+lws_context* WebSocketClient::getContext() const {
+    return context;
+}

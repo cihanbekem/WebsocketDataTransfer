@@ -2,9 +2,9 @@
 #define CLIENT_H
 
 #include <libwebsockets.h>
+#include "student.pb.h"
 #include <string>
-#include <vector>
-#include <nlohmann/json.hpp>
+#include <atomic>
 
 class WebSocketClient {
 public:
@@ -13,13 +13,14 @@ public:
 
     bool connect();
     void stop();
-    std::string getAddress() const;
-    int getPort() const;
+    void handleUserInput();
+    
+    std::atomic<bool> interrupted;
+    lws_context* getContext() const;
 
 private:
-    void handleUserInput();
-    static int callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
-                                   void *user, void *in, size_t len);
+    static int callback_websockets(struct lws* wsi, enum lws_callback_reasons reason,
+                                   void* user, void* in, size_t len);
 
     static const struct lws_protocols protocols[];
 
@@ -27,7 +28,6 @@ private:
     struct lws_context *context;
     std::string address;
     int port;
-    bool interrupted;
 
     static struct lws *wsi;
 };
