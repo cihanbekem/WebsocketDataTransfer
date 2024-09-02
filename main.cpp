@@ -1,5 +1,5 @@
-#include "client.h"
 #include "server.h"
+#include "client.h"
 #include <iostream>
 #include <string>
 #include <thread>
@@ -13,7 +13,6 @@ void runClient(const std::string& address, int port) {
             client.handleUserInput(); // Start user input handling in this thread
         });
 
-        // Use the public method to get context for service loop
         while (!client.interrupted) {
             lws_service(client.getContext(), 1000);
         }

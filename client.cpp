@@ -6,8 +6,10 @@
 #include <sstream>
 #include <cstring>
 #include <thread>
+#include <chrono>
+#include <nlohmann/json.hpp>
 
-struct lws* WebSocketClient::wsi = nullptr;  // Static üye tanımı
+struct lws* WebSocketClient::wsi = nullptr;
 
 WebSocketClient::WebSocketClient(const std::string& address, int port)
     : address(address), port(port), interrupted(false) {
@@ -52,11 +54,16 @@ void WebSocketClient::stop() {
 void WebSocketClient::handleUserInput() {
     while (!interrupted) {
         std::string command;
-        std::cout << "Enter 'send_csv <filename>' to send a CSV file or 'exit' to quit: ";
+        std::cout << "Enter 'send_csv <filename> <format>' to send a CSV file in Protobuf or JSON format or 'exit' to quit: ";
         std::getline(std::cin, command);
 
         if (command.rfind("send_csv", 0) == 0) {
-            std::string filename = command.substr(9);
+            std::istringstream stream(command.substr(9));
+            std::string filename, format;
+            stream >> filename >> format;
+
+            bool isProtobuf = (format == "protobuf");
+
             StudentList studentList;
             std::ifstream file(filename);
             std::string line;
@@ -87,14 +94,66 @@ void WebSocketClient::handleUserInput() {
                 student->set_gpa(std::stof(item));
             }
 
+            auto start = std::chrono::high_resolution_clock::now();
             std::string serializedData;
-            studentList.SerializeToString(&serializedData);
 
-            unsigned char buffer[LWS_PRE + serializedData.size()];
-            std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
-            lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
+            try {
+                if (isProtobuf) {
+                    // Serialize Protobuf data
+                    studentList.SerializeToString(&serializedData);
 
-            std::cout << "CSV data from '" << filename << "' sent as Protobuf." << std::endl;
+                    // Allocate buffer size
+                    std::vector<unsigned char> buffer(LWS_PRE + serializedData.size());
+
+                    // Copy serialized data to buffer
+                    std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+
+                    // Write data using libwebsockets
+                    lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
+                } else {
+                    // Convert to JSON format
+                    nlohmann::json jsonData;
+                    for (const auto& student : studentList.students()) {
+                        nlohmann::json jsonStudent;
+                        jsonStudent["student_id"] = student.student_id();
+                        jsonStudent["name"] = student.name();
+                        jsonStudent["age"] = student.age();
+                        jsonStudent["email"] = student.email();
+                        jsonStudent["major"] = student.major();
+                        jsonStudent["gpa"] = student.gpa();
+                        jsonData.push_back(jsonStudent);
+                    }
+
+                    try {
+                        serializedData = jsonData.dump(); // JSON verisini oluştur
+                    } catch (const nlohmann::json::exception& e) {
+                        std::cerr << "JSON parsing error: " << e.what() << std::endl;
+                        continue; // Hata durumunda işlemi geç
+                    }
+
+                    // Save JSON to file for debugging
+                    std::ofstream jsonFile("file_content.json");
+                    jsonFile << jsonData.dump(4);
+                    jsonFile.close();
+
+                    // Allocate buffer size
+                    std::vector<unsigned char> buffer(LWS_PRE + serializedData.size());
+
+                    // Copy serialized data to buffer
+                    std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+
+                    // Write data using libwebsockets
+                    lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_TEXT);
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+            }
+
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end - start;
+
+            std::cout << "CSV data from '" << filename << "' sent as " << (isProtobuf ? "Protobuf." : "JSON.") << std::endl;
+            std::cout << "Serialization time: " << elapsed.count() << " seconds" << std::endl;
 
         } else if (command == "exit") {
             stop();
@@ -102,11 +161,48 @@ void WebSocketClient::handleUserInput() {
     }
 }
 
+
+
+
+
+
 int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                          void *user, void *in, size_t len) {
     switch (reason) {
-        case LWS_CALLBACK_RECEIVE:
-            std::cout << "Received message from server." << std::endl;
+        case LWS_CALLBACK_RECEIVE: {
+            std::string receivedData((const char *)in, len);
+            if (receivedData[0] == '{' || receivedData[0] == '[') {  // JSON
+                nlohmann::json jsonData = nlohmann::json::parse(receivedData);
+
+                std::cout << "Received JSON data:" << std::endl;
+                for (const auto& jsonStudent : jsonData) {
+                    std::cout << "ID: " << jsonStudent["student_id"].get<int>()
+                              << ", Name: " << jsonStudent["name"].get<std::string>()
+                              << ", Age: " << jsonStudent["age"].get<int>()
+                              << ", Email: " << jsonStudent["email"].get<std::string>()
+                              << ", Major: " << jsonStudent["major"].get<std::string>()
+                              << ", GPA: " << jsonStudent["gpa"].get<float>() << std::endl;
+                }
+            } else {  // Protobuf
+                StudentList studentList;
+                if (studentList.ParseFromString(receivedData)) {
+                    std::cout << "Received Protobuf data:" << std::endl;
+                    for (const Student& student : studentList.students()) {
+                        std::cout << "ID: " << student.student_id()
+                                  << ", Name: " << student.name()
+                                  << ", Age: " << student.age()
+                                  << ", Email: " << student.email()
+                                  << ", Major: " << student.major()
+                                  << ", GPA: " << student.gpa() << std::endl;
+                    }
+                }
+            }
+            break;
+        }
+
+        case LWS_CALLBACK_CLOSED:
+            std::cout << "WebSocket connection closed." << std::endl;
+            wsi = nullptr;
             break;
 
         default:

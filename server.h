@@ -24,6 +24,7 @@ private:
 
     void handleUserInput();
     void processCommand(const std::string& command);
+    void sendData(const std::string& data);
     static int callback_websockets(struct lws* wsi, enum lws_callback_reasons reason,
                                    void* user, void* in, size_t len);
 
