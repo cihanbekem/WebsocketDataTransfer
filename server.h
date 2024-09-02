@@ -13,6 +13,7 @@ public:
 
     bool start();
     void stop();
+    static struct lws* wsi;
 
 private:
     int port;
@@ -20,7 +21,7 @@ private:
     lws_context* context;
     struct lws_context_creation_info info;
 
-    static struct lws* wsi;
+    
 
     void handleUserInput();
     void processCommand(const std::string& command);

@@ -13,6 +13,7 @@ void runClient(const std::string& address, int port) {
             client.handleUserInput(); // Start user input handling in this thread
         });
 
+        // Check client.interrupted instead of client.getContext()
         while (!client.interrupted) {
             lws_service(client.getContext(), 1000);
         }

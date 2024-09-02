@@ -116,9 +116,14 @@ void WebSocketServer::handleUserInput() {
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = end - start;
 
+            // Allocate buffer size and copy data
             unsigned char* buffer = new unsigned char[LWS_PRE + serializedData.size()];
             std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
+
+            // Write data using libwebsockets
             lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), isProtobuf ? LWS_WRITE_BINARY : LWS_WRITE_TEXT);
+
+            // Free allocated buffer
             delete[] buffer;
 
             std::cout << "CSV data from '" << filename << "' sent as " << (isProtobuf ? "Protobuf." : "JSON.") << std::endl;
@@ -130,76 +135,12 @@ void WebSocketServer::handleUserInput() {
     }
 }
 
-void WebSocketServer::processCommand(const std::string& command) {
-    if (command.rfind("send_csv", 0) == 0) {
-        std::string filename = command.substr(9);
-
-        auto start = std::chrono::high_resolution_clock::now();  // Start timing
-
-        StudentList studentList;
-        std::ifstream file(filename);
-        std::string line;
-
-        std::getline(file, line); // Skip header
-
-        while (std::getline(file, line)) {
-            std::stringstream ss(line);
-            std::string item;
-            Student* student = studentList.add_students();
-
-            std::getline(ss, item, ',');
-            student->set_student_id(std::stoi(item));
-
-            std::getline(ss, item, ',');
-            student->set_name(item);
-
-            std::getline(ss, item, ',');
-            student->set_age(std::stoi(item));
-
-            std::getline(ss, item, ',');
-            student->set_email(item);
-
-            std::getline(ss, item, ',');
-            student->set_major(item);
-
-            std::getline(ss, item, ',');
-            student->set_gpa(std::stof(item));
-        }
-
-        std::string serializedData;
-        nlohmann::json jsonData;
-        for (const auto& student : studentList.students()) {
-            nlohmann::json jsonStudent;
-            jsonStudent["student_id"] = student.student_id();
-            jsonStudent["name"] = student.name();
-            jsonStudent["age"] = student.age();
-            jsonStudent["email"] = student.email();
-            jsonStudent["major"] = student.major();
-            jsonStudent["gpa"] = student.gpa();
-            jsonData.push_back(jsonStudent);
-        }
-        serializedData = jsonData.dump();  // Convert to JSON format
-
-        auto end = std::chrono::high_resolution_clock::now();  // End timing
-        std::chrono::duration<double> elapsed = end - start;
-
-        sendData(serializedData);
-
-        std::cout << "CSV data from '" << filename << "' sent as JSON." << std::endl;
-        std::cout << "Serialization time: " << elapsed.count() << " seconds" << std::endl;
-
-    } else if (command == "stop") {
-        stop();
-    } else {
-        std::cout << "Unknown command." << std::endl;
-    }
-}
-
 void WebSocketServer::sendData(const std::string& data) {
     if (wsi) {
-        unsigned char buffer[LWS_PRE + data.size()];
+        unsigned char* buffer = new unsigned char[LWS_PRE + data.size()];
         std::memcpy(&buffer[LWS_PRE], data.c_str(), data.size());
         lws_write(wsi, &buffer[LWS_PRE], data.size(), LWS_WRITE_TEXT);
+        delete[] buffer; // Free allocated buffer
     } else {
         std::cerr << "WebSocket connection is not established.\n";
     }

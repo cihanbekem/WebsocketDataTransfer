@@ -16,7 +16,7 @@ public:
     void handleUserInput();
     
     std::atomic<bool> interrupted;
-    lws_context* getContext() const;
+    lws_context* getContext() const; // Bu fonksiyonun bildirimi burada olmalı
 
 private:
     static int callback_websockets(struct lws* wsi, enum lws_callback_reasons reason,

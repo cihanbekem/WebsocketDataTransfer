@@ -8,6 +8,7 @@
 #include <thread>
 #include <chrono>
 #include <nlohmann/json.hpp>
+#include <vector> // std::vector kullanımına dikkat
 
 struct lws* WebSocketClient::wsi = nullptr;
 
@@ -99,19 +100,13 @@ void WebSocketClient::handleUserInput() {
 
             try {
                 if (isProtobuf) {
-                    // Serialize Protobuf data
                     studentList.SerializeToString(&serializedData);
 
-                    // Allocate buffer size
                     std::vector<unsigned char> buffer(LWS_PRE + serializedData.size());
-
-                    // Copy serialized data to buffer
                     std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
 
-                    // Write data using libwebsockets
                     lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
                 } else {
-                    // Convert to JSON format
                     nlohmann::json jsonData;
                     for (const auto& student : studentList.students()) {
                         nlohmann::json jsonStudent;
@@ -131,18 +126,9 @@ void WebSocketClient::handleUserInput() {
                         continue; // Hata durumunda işlemi geç
                     }
 
-                    // Save JSON to file for debugging
-                    std::ofstream jsonFile("file_content.json");
-                    jsonFile << jsonData.dump(4);
-                    jsonFile.close();
-
-                    // Allocate buffer size
                     std::vector<unsigned char> buffer(LWS_PRE + serializedData.size());
-
-                    // Copy serialized data to buffer
                     std::memcpy(&buffer[LWS_PRE], serializedData.c_str(), serializedData.size());
 
-                    // Write data using libwebsockets
                     lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_TEXT);
                 }
             } catch (const std::exception& e) {
@@ -161,10 +147,9 @@ void WebSocketClient::handleUserInput() {
     }
 }
 
-
-
-
-
+lws_context* WebSocketClient::getContext() const {
+    return context;  // Burada context dönüyoruz
+}
 
 int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                          void *user, void *in, size_t len) {
@@ -172,16 +157,20 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
         case LWS_CALLBACK_RECEIVE: {
             std::string receivedData((const char *)in, len);
             if (receivedData[0] == '{' || receivedData[0] == '[') {  // JSON
-                nlohmann::json jsonData = nlohmann::json::parse(receivedData);
+                try {
+                    nlohmann::json jsonData = nlohmann::json::parse(receivedData);
 
-                std::cout << "Received JSON data:" << std::endl;
-                for (const auto& jsonStudent : jsonData) {
-                    std::cout << "ID: " << jsonStudent["student_id"].get<int>()
-                              << ", Name: " << jsonStudent["name"].get<std::string>()
-                              << ", Age: " << jsonStudent["age"].get<int>()
-                              << ", Email: " << jsonStudent["email"].get<std::string>()
-                              << ", Major: " << jsonStudent["major"].get<std::string>()
-                              << ", GPA: " << jsonStudent["gpa"].get<float>() << std::endl;
+                    std::cout << "Received JSON data:" << std::endl;
+                    for (const auto& jsonStudent : jsonData) {
+                        std::cout << "ID: " << jsonStudent["student_id"].get<int>()
+                                  << ", Name: " << jsonStudent["name"].get<std::string>()
+                                  << ", Age: " << jsonStudent["age"].get<int>()
+                                  << ", Email: " << jsonStudent["email"].get<std::string>()
+                                  << ", Major: " << jsonStudent["major"].get<std::string>()
+                                  << ", GPA: " << jsonStudent["gpa"].get<float>() << std::endl;
+                    }
+                } catch (const nlohmann::json::exception& e) {
+                    std::cerr << "Error parsing JSON data: " << e.what() << std::endl;
                 }
             } else {  // Protobuf
                 StudentList studentList;
@@ -195,6 +184,8 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
                                   << ", Major: " << student.major()
                                   << ", GPA: " << student.gpa() << std::endl;
                     }
+                } else {
+                    std::cerr << "Error parsing Protobuf data." << std::endl;
                 }
             }
             break;
@@ -215,7 +206,3 @@ const struct lws_protocols WebSocketClient::protocols[] = {
     {"websocket-protocol", WebSocketClient::callback_websockets, 0, 0},
     {NULL, NULL, 0, 0}
 };
-
-lws_context* WebSocketClient::getContext() const {
-    return context;
-}
