@@ -1,0 +1,101 @@
+StudentID,Name,Age,Email,Major,GPA
+1,name2 surname2,46,name6.surname6@student.com,Electrical Engineering,0
+2,name5 surname5,33,name4.surname4@student.com,Philosophy,2
+3,name3 surname3,34,name4.surname4@student.com,Chemistry,1
+4,name1 surname1,48,name3.surname3@student.com,Physics,1
+5,name3 surname3,24,name1.surname1@student.com,Biology,3
+6,name7 surname7,49,name6.surname6@student.com,Electrical Engineering,1
+7,name2 surname2,27,name2.surname2@student.com,Business Administration,2
+8,name4 surname4,48,name4.surname4@student.com,Computer Engineering,2
+9,name6 surname6,42,name8.surname8@student.com,Philosophy,2
+10,name3 surname3,39,name6.surname6@student.com,Art History,3
+11,name6 surname6,41,name1.surname1@student.com,Biology,1
+12,name8 surname8,39,name8.surname8@student.com,Physics,3
+13,name0 surname0,54,name2.surname2@student.com,Philosophy,3
+14,name5 surname5,39,name4.surname4@student.com,Electrical Engineering,1
+15,name8 surname8,28,name3.surname3@student.com,Chemistry,1
+16,name8 surname8,29,name9.surname9@student.com,Computer Engineering,3
+17,name4 surname4,57,name6.surname6@student.com,Physics,1
+18,name6 surname6,51,name2.surname2@student.com,Business Administration,0
+19,name9 surname9,44,name3.surname3@student.com,Chemistry,2
+20,name8 surname8,31,name1.surname1@student.com,Business Administration,3
+21,name6 surname6,34,name0.surname0@student.com,Electrical Engineering,3
+22,name9 surname9,20,name9.surname9@student.com,Philosophy,1
+23,name9 surname9,44,name8.surname8@student.com,International Relations,3
+24,name9 surname9,41,name0.surname0@student.com,International Relations,1
+25,name0 surname0,21,name0.surname0@student.com,Biology,0
+26,name0 surname0,39,name2.surname2@student.com,Business Administration,0
+27,name6 surname6,25,name6.surname6@student.com,English Literature,3
+28,name8 surname8,58,name4.surname4@student.com,International Relations,2
+29,name0 surname0,33,name6.surname6@student.com,Physics,2
+30,name5 surname5,33,name2.surname2@student.com,Art History,2
+31,name2 surname2,25,name5.surname5@student.com,Biology,1
+32,name4 surname4,57,name4.surname4@student.com,English Literature,1
+33,name5 surname5,35,name3.surname3@student.com,Chemistry,2
+34,name0 surname0,41,name8.surname8@student.com,Philosophy,0
+35,name6 surname6,45,name2.surname2@student.com,Chemistry,3
+36,name9 surname9,55,name6.surname6@student.com,Biology,0
+37,name2 surname2,58,name7.surname7@student.com,English Literature,0
+38,name8 surname8,49,name1.surname1@student.com,Chemistry,2
+39,name5 surname5,48,name9.surname9@student.com,Biology,3
+40,name5 surname5,47,name3.surname3@student.com,Electrical Engineering,2
+41,name1 surname1,48,name9.surname9@student.com,English Literature,1
+42,name8 surname8,33,name5.surname5@student.com,Art History,0
+43,name3 surname3,26,name6.surname6@student.com,Physics,2
+44,name5 surname5,43,name0.surname0@student.com,Philosophy,0
+45,name4 surname4,57,name0.surname0@student.com,Business Administration,3
+46,name6 surname6,45,name8.surname8@student.com,International Relations,2
+47,name7 surname7,40,name4.surname4@student.com,Physics,0
+48,name8 surname8,26,name5.surname5@student.com,Chemistry,1
+49,name9 surname9,20,name2.surname2@student.com,English Literature,1
+50,name0 surname0,47,name9.surname9@student.com,Business Administration,0
+51,name0 surname0,47,name7.surname7@student.com,International Relations,0
+52,name5 surname5,58,name4.surname4@student.com,Business Administration,0
+53,name0 surname0,57,name7.surname7@student.com,Philosophy,2
+54,name4 surname4,49,name7.surname7@student.com,Biology,3
+55,name1 surname1,21,name6.surname6@student.com,Philosophy,2
+56,name6 surname6,32,name2.surname2@student.com,Physics,0
+57,name9 surname9,25,name9.surname9@student.com,Electrical Engineering,3
+58,name9 surname9,35,name5.surname5@student.com,Biology,3
+59,name2 surname2,36,name4.surname4@student.com,Physics,1
+60,name9 surname9,59,name3.surname3@student.com,Chemistry,0
+61,name8 surname8,23,name0.surname0@student.com,Philosophy,0
+62,name2 surname2,27,name0.surname0@student.com,Chemistry,3
+63,name4 surname4,50,name3.surname3@student.com,Biology,3
+64,name0 surname0,23,name6.surname6@student.com,English Literature,0
+65,name1 surname1,36,name2.surname2@student.com,Business Administration,3
+66,name7 surname7,38,name7.surname7@student.com,English Literature,3
+67,name0 surname0,24,name0.surname0@student.com,International Relations,3
+68,name0 surname0,22,name2.surname2@student.com,Philosophy,1
+69,name9 surname9,54,name4.surname4@student.com,Business Administration,3
+70,name3 surname3,44,name6.surname6@student.com,International Relations,2
+71,name1 surname1,55,name9.surname9@student.com,Biology,2
+72,name4 surname4,25,name4.surname4@student.com,Business Administration,3
+73,name1 surname1,50,name5.surname5@student.com,Biology,0
+74,name4 surname4,27,name8.surname8@student.com,Electrical Engineering,3
+75,name1 surname1,58,name8.surname8@student.com,Electrical Engineering,1
+76,name1 surname1,51,name8.surname8@student.com,Physics,0
+77,name6 surname6,48,name4.surname4@student.com,Computer Engineering,1
+78,name8 surname8,24,name9.surname9@student.com,Computer Engineering,2
+79,name7 surname7,37,name5.surname5@student.com,Biology,1
+80,name5 surname5,49,name5.surname5@student.com,Chemistry,1
+81,name4 surname4,24,name4.surname4@student.com,International Relations,0
+82,name8 surname8,41,name3.surname3@student.com,Art History,2
+83,name2 surname2,49,name9.surname9@student.com,International Relations,2
+84,name4 surname4,46,name1.surname1@student.com,English Literature,1
+85,name9 surname9,48,name2.surname2@student.com,Physics,2
+86,name2 surname2,59,name1.surname1@student.com,Chemistry,3
+87,name7 surname7,40,name6.surname6@student.com,Art History,3
+88,name9 surname9,32,name6.surname6@student.com,English Literature,0
+89,name5 surname5,26,name0.surname0@student.com,Electrical Engineering,0
+90,name7 surname7,26,name0.surname0@student.com,Business Administration,1
+91,name6 surname6,43,name4.surname4@student.com,Biology,0
+92,name7 surname7,53,name4.surname4@student.com,Chemistry,3
+93,name1 surname1,29,name0.surname0@student.com,Biology,2
+94,name0 surname0,27,name0.surname0@student.com,Electrical Engineering,3
+95,name8 surname8,36,name7.surname7@student.com,Business Administration,1
+96,name2 surname2,29,name2.surname2@student.com,Philosophy,0
+97,name6 surname6,37,name6.surname6@student.com,Physics,2
+98,name4 surname4,40,name7.surname7@student.com,International Relations,1
+99,name0 surname0,35,name0.surname0@student.com,Philosophy,2
+100,name3 surname3,43,name1.surname1@student.com,Art History,0

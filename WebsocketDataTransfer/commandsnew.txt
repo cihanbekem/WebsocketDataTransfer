@@ -1,0 +1,2 @@
+g++ server.cpp main.cpp client.cpp student.pb.cc -o program -lwebsockets -lpthread -lprotobuf 
+./program
