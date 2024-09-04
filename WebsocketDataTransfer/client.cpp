@@ -1,5 +1,4 @@
-
-#include "client.h"
+#include "client.hpp"
 #include "student.pb.h"
 #include <libwebsockets.h>
 #include <iostream>
@@ -20,7 +19,7 @@ bool WebSocketClient::is_json = false;
 std::string WebSocketClient::accumulatedData;
 
 WebSocketClient::WebSocketClient(const std::string& address, int port)
-    : address(address), port(port), interrupted(false)
+    : address(address), m_port(port), interrupted(false)
 {
     std::memset(&info, 0, sizeof(info));
     info.protocols = protocols;
@@ -43,7 +42,7 @@ bool WebSocketClient::connect()
     struct lws_client_connect_info ccinfo = {0};
     ccinfo.context = context;
     ccinfo.address = address.c_str();
-    ccinfo.port = port;
+    ccinfo.port = m_port;
     ccinfo.path = "/";
     ccinfo.protocol = protocols[0].name;
     ccinfo.host = lws_canonical_hostname(context);
@@ -120,8 +119,6 @@ void WebSocketClient::handleUserInput()
             {
                 if (isProtobuf)
                 {
-                    std::cout << "CSV data from '" << filename <<
-                        "' sent as " << (isProtobuf ? "Protobuf." : "JSON.") << std::endl;
                     studentList.SerializeToString(&serializedData);
 
                     std::vector<unsigned char> buffer(LWS_PRE + serializedData.size());
@@ -129,6 +126,11 @@ void WebSocketClient::handleUserInput()
                     LOG_INFO_CLIENT("print");
 
                     lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_BINARY);
+
+                    // Save Protobuf to file
+                    std::ofstream protobufFile("file_content_client.pb", std::ios::binary);
+                    protobufFile.write(serializedData.data(), serializedData.size());
+                    protobufFile.close();
                 }
                 else
                 {
@@ -153,11 +155,6 @@ void WebSocketClient::handleUserInput()
 
                     std::vector<unsigned char> buffer(LWS_PRE + serializedData.size());
                     std::memcpy(&buffer[LWS_PRE], serializedData.data(), serializedData.size());
-
-                    //std::cout << "clientSendData: " << serializedData.c_str() << std::endl;
-                    //std::cout << "client data len buffer: " << buffer.size() << std::endl;
-                    //std::cout << "client data len serializedData: " << serializedData.size() << std::endl;
-
                     lws_write(wsi, &buffer[LWS_PRE], serializedData.size(), LWS_WRITE_TEXT);
                 }
 
@@ -211,7 +208,7 @@ bool WebSocketClient::isCompleteProtobuf(const std::string& data)
 int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                          void *user, void *in, size_t len)
 {
-    std::cout<<"client reason: "<<reason<<std::endl;
+    // std::cout<<"client reason: "<<reason<<std::endl;
     switch (reason)
     {
         case LWS_CALLBACK_CLIENT_ESTABLISHED:
@@ -309,9 +306,7 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
             break;
 
         default:
-                    std::cout << "WebSocket default." << std::endl;
-
-        
+                    // std::cout << "WebSocket default." << std::endl;
             break;
     }
     return 0;

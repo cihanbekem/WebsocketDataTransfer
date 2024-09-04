@@ -1,5 +1,5 @@
-#include "client.h"
-#include "server.h"
+#include "client.hpp"
+#include "server.hpp"
 
 #include <iostream>
 #include <string>
@@ -60,26 +60,12 @@ int main()
     if (mode == "server")
     {
         int port = 8080; // Default port for server
-        /*std::cout << "Enter port number (default 8080): ";
-        std::string portStr = "8080";
-        std::getline(std::cin, portStr);
-        if (!portStr.empty()) {
-            port = std::stoi(portStr);
-        }*/
         runServer(port);
     }
     else if (mode == "client")
     {
         std::string address = "localhost"; // Default address for client
         int port = 8080; // Default port for client
-        /*std::cout << "Enter server address (default localhost): ";
-        std::getline(std::cin, address);
-        std::cout << "Enter port number (default 8080): ";
-        std::string portStr = "8080";
-        std::getline(std::cin, portStr);
-        if (!portStr.empty()) {
-            port = std::stoi(portStr);
-        }*/
         runClient(address, port);
     }
     else

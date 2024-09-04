@@ -1,5 +1,4 @@
-
-#include "server.h"
+#include "server.hpp"
 #include "student.pb.h"
 #include <libwebsockets.h>
 #include <iostream>
@@ -18,7 +17,7 @@ struct lws* WebSocketServer::wsi = nullptr;
 bool is_json = false;
 std::string accumulatedData;
 
-WebSocketServer::WebSocketServer(int port) : port(port), interrupted(false)
+WebSocketServer::WebSocketServer(int port) : m_port(port), interrupted(false)
 {
     std::memset(&info, 0, sizeof(info));
     info.port = port;
@@ -42,7 +41,7 @@ bool WebSocketServer::start()
         return false;
     }
 
-    std::cout << "Server started on port " << port << std::endl;
+    std::cout << "Server started on port " << m_port << std::endl;
 
     std::thread inputThread(&WebSocketServer::handleUserInput, this);
 
@@ -113,6 +112,11 @@ void WebSocketServer::handleUserInput()
             if (isProtobuf)
             {
                 studentList.SerializeToString(&serializedData);
+
+                // Save Protobuf to file
+                std::ofstream protobufFile("file_content_server.pb", std::ios::binary);
+                protobufFile.write(serializedData.data(), serializedData.size());
+                protobufFile.close();
             }
             else
             {
