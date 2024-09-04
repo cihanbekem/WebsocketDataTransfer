@@ -54,7 +54,7 @@ public:
     static struct lws* wsi; ///< WebSocket bağlantı nesnesi.
 
 private:
-    int port; ///< WebSocket sunucusunun dinleyeceği port numarası.
+    int m_port; ///< WebSocket sunucusunun dinleyeceği port numarası.
     std::atomic<bool> interrupted; ///< Kullanıcı tarafından bağlantının kesilip kesilmediğini belirten bayrak.
     lws_context* context; ///< WebSocket bağlamı.
     struct lws_context_creation_info info; ///< WebSocket bağlamı oluşturma bilgileri.

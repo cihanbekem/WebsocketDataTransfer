@@ -95,7 +95,7 @@ private:
     struct lws_context_creation_info info; ///< WebSocket bağlamı oluşturma bilgileri.
     struct lws_context *context; ///< WebSocket bağlamı.
     std::string address; ///< WebSocket sunucusunun adresi.
-    int port; ///< WebSocket sunucusunun portu.
+    int m_port; ///< WebSocket sunucusunun portu.
 
     static struct lws *wsi; ///< WebSocket bağlantı nesnesi.
     static bool is_json; ///< JSON formatı bayrağı.
