@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-message FileContent {
-  repeated string lines = 1;
-}
-
-message SimpleMessage {
-  string message = 1;
-}
