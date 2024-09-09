@@ -1,5 +1,6 @@
 #include "server.hpp"
 #include "student.pb.h"
+#include "client.hpp"
 #include <libwebsockets.h>
 #include <iostream>
 #include <fstream>
@@ -9,8 +10,9 @@
 #include <chrono>
 #include <nlohmann/json.hpp>
 
-#define LOG_INFO_SERVER(message) \
-    std::cout << "SERVER_INFO: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl;
+
+ #define LOG_INFO_SERVER(message) \
+    std::cout << "SERVER_INFO: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; 
 
 struct lws* WebSocketServer::wsi = nullptr;
 
@@ -107,7 +109,17 @@ void WebSocketServer::handleUserInput()
                 student->set_gpa(std::stof(item));
             }
 
-            auto start = std::chrono::high_resolution_clock::now();
+            //start time for sending file server to client
+            auto now = steady_clock::now();
+
+           // calculate the time (by nanoseconds) 
+           // used nanoseconds since express extremely short durations
+            auto seconds_since_epoch = duration_cast<nanoseconds>(now.time_since_epoch()).count();
+          
+            std::cout << "Start time for sending file to client: " 
+            << seconds_since_epoch << " nanoseconds" << std::endl;
+
+
             std::string serializedData;
             if (isProtobuf)
             {
@@ -139,8 +151,6 @@ void WebSocketServer::handleUserInput()
                 jsonFile << jsonData.dump(4);
                 jsonFile.close();
             }
-            auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed = end - start;
 
             // Allocate buffer size and copy data
             unsigned char* buffer = new unsigned char[LWS_PRE + serializedData.size()];
@@ -158,9 +168,9 @@ void WebSocketServer::handleUserInput()
 
             std::cout << "CSV data from '" << filename <<
                 "' sent as " << (isProtobuf ? "Protobuf." : "JSON.") << std::endl;
-            std::cout << "Serialization time: " << elapsed.count() << " seconds" << std::endl;
 
         }
+        
         else if (command == "exit")
         {
             stop();
@@ -172,7 +182,6 @@ void WebSocketServer::handleUserInput()
 bool isCompleteJson(const std::string& data)
 {
     // Simple check for JSON completeness
-    // This is an example; you might need a more sophisticated check
     size_t openBrackets =
         std::count(data.begin(), data.end(), '{') + std::count(data.begin(), data.end(), '[');
     size_t closeBrackets =
@@ -229,13 +238,11 @@ int WebSocketServer::callback_websockets(struct lws *wsi, enum lws_callback_reas
             accumulatedData.append((const char*)in, len);
             std::cout << "accumulatedData len" << accumulatedData.length() << std::endl;
 
-
-
             if (is_json)
             {
                 LOG_INFO_SERVER("print");
 
-                if (isCompleteJson(accumulatedData)) //if (accumulatedData.length() > 12281)
+                if (isCompleteJson(accumulatedData)) 
                 {
                     LOG_INFO_SERVER("print");
 
@@ -281,6 +288,16 @@ int WebSocketServer::callback_websockets(struct lws *wsi, enum lws_callback_reas
                     accumulatedData.clear();
                 }
             }
+
+
+            // End time for receiving file from client
+            auto now = steady_clock::now();
+        
+            auto seconds_since_epoch = duration_cast<nanoseconds>(now.time_since_epoch()).count();
+
+            std::cout << "End time for receiving file from client: "
+            << seconds_since_epoch << " nanoseconds" << std::endl;
+
             break;
         }
         

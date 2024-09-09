@@ -40,10 +40,6 @@ void runServer(int port)
     if (server.start())
     {
         std::cout << "Server running on port " << port << std::endl;
-        std::cout << "Press Enter to stop the server..." << std::endl;
-
-        std::cin.get();  // Wait for Enter key to stop the server
-        server.stop();
     }
     else
     {

@@ -8,10 +8,13 @@
 #include <thread>
 #include <chrono>
 #include <nlohmann/json.hpp>
-#include <vector> // std::vector kullanımına dikkat
+#include <vector> 
+
+using namespace std::chrono;
 
 #define LOG_INFO_CLIENT(message) \
-    std::cout << "CLIENT_INFO: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl;
+    std::cout << "CLIENT_INFO: " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; 
+
 
 struct lws* WebSocketClient::wsi = nullptr;
 
@@ -24,6 +27,7 @@ WebSocketClient::WebSocketClient(const std::string& address, int port)
     std::memset(&info, 0, sizeof(info));
     info.protocols = protocols;
 }
+
 
 WebSocketClient::~WebSocketClient()
 {
@@ -57,6 +61,11 @@ bool WebSocketClient::connect()
     }
 
     return true;
+}
+
+steady_clock::time_point WebSocketClient::getClientStartTime()
+{
+    return m_start;
 }
 
 void WebSocketClient::stop()
@@ -112,7 +121,16 @@ void WebSocketClient::handleUserInput()
                 student->set_gpa(std::stof(item));
             }
 
-            auto start = std::chrono::high_resolution_clock::now();
+            //start time for sending file client to server
+            auto now = steady_clock::now();
+
+           // calculate the time (by nanoseconds) 
+           // used nanoseconds since express extremely short durations
+            auto seconds_since_epoch = duration_cast<nanoseconds>(now.time_since_epoch()).count();
+          
+            std::cout << "Start time for sending file to server: " 
+            << seconds_since_epoch << " nanoseconds" << std::endl;
+
             std::string serializedData;
 
             try
@@ -164,12 +182,8 @@ void WebSocketClient::handleUserInput()
                 std::cerr << "Error: " << e.what() << std::endl;
             }
 
-            auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed = end - start;
-
             std::cout << "CSV data from '" << filename <<
                 "' sent as " << (isProtobuf ? "Protobuf." : "JSON.") << std::endl;
-            std::cout << "Serialization time: " << elapsed.count() << " seconds" << std::endl;
 
         }
         else if (command == "exit")
@@ -187,7 +201,6 @@ lws_context* WebSocketClient::getContext() const
 bool WebSocketClient::isCompleteJson(const std::string& data)
 {
     // Simple check for JSON completeness
-    // This is an example; you might need a more sophisticated check
     size_t openBrackets =
         std::count(data.begin(), data.end(), '{') + std::count(data.begin(), data.end(), '[');
     size_t closeBrackets =
@@ -208,7 +221,6 @@ bool WebSocketClient::isCompleteProtobuf(const std::string& data)
 int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reasons reason,
                                          void *user, void *in, size_t len)
 {
-    // std::cout<<"client reason: "<<reason<<std::endl;
     switch (reason)
     {
         case LWS_CALLBACK_CLIENT_ESTABLISHED:
@@ -251,7 +263,7 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
             {
                 LOG_INFO_CLIENT("print");
 
-                if (isCompleteJson(accumulatedData)) //if (accumulatedData.length() > 12281)
+                if (isCompleteJson(accumulatedData))
                 {
                     LOG_INFO_CLIENT("print");
 
@@ -297,7 +309,17 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
                     accumulatedData.clear();
                 }
             }
+
+            // End time for receiving file from server
+            auto now = steady_clock::now();
+        
+            auto seconds_since_epoch = duration_cast<nanoseconds>(now.time_since_epoch()).count();
+
+            std::cout << "End time for receiving file from server: "
+            << seconds_since_epoch << " nanoseconds" << std::endl;
+
             break;
+
         }
         
         case LWS_CALLBACK_CLIENT_CLOSED:
@@ -306,7 +328,6 @@ int WebSocketClient::callback_websockets(struct lws *wsi, enum lws_callback_reas
             break;
 
         default:
-                    // std::cout << "WebSocket default." << std::endl;
             break;
     }
     return 0;

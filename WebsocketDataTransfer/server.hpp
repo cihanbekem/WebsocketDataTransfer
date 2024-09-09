@@ -5,6 +5,7 @@
 #include "student.pb.h"
 #include <string>
 #include <atomic>
+#include "client.hpp"
 
 /**
  * @class WebSocketServer

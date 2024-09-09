@@ -6,6 +6,8 @@
 #include <string>
 #include <atomic>
 
+using namespace std::chrono;
+
 /**
  * @class WebSocketClient
  * @brief WebSocket istemci sınıfı.
@@ -23,6 +25,7 @@ public:
      * @param port Bağlanılacak WebSocket sunucusunun portu.
      */
     WebSocketClient(const std::string& address, int port);
+    WebSocketClient();
 
     /**
      * @brief Deconstructor fonksiyon. 
@@ -76,6 +79,8 @@ public:
      */
     lws_context* getContext() const;
 
+    steady_clock::time_point getClientStartTime();
+
 private:
     /**
      * @brief WebSocket geri çağırma fonksiyonu.
@@ -100,6 +105,7 @@ private:
     static struct lws *wsi; ///< WebSocket bağlantı nesnesi.
     static bool is_json; ///< JSON formatı bayrağı.
     static std::string accumulatedData; ///< Biriken veri.
+    steady_clock::time_point m_start;
 };
 
 #endif // CLIENT_HPP

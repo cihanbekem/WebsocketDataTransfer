@@ -1,0 +1,7 @@
+g++ main.cpp server.cpp client.cpp student.pb.cc -o program -lwebsockets -lprotobuf -ljsoncpp -lpthread
+
+./program
+
+send_csv data_big.csv JSON      // example command for sending JSON format
+
+send_csv data_big.csv protobuf   // example command for sending protobuf format
